@@ -61,4 +61,55 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 
 const User = mongoose.model('User', userSchema);
 
-module.exports = { User };
+// Hidden Place Schema
+const hiddenPlaceSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Title is required'],
+    trim: true,
+    maxlength: [100, 'Title cannot exceed 100 characters']
+  },
+  description: {
+    type: String,
+    required: [true, 'Description is required'],
+    trim: true,
+    maxlength: [1000, 'Description cannot exceed 1000 characters']
+  },
+  imageUrl: {
+    type: String,
+    trim: true
+  },
+  location: {
+    lat: {
+      type: Number,
+      required: [true, 'Latitude is required'],
+      min: [-90, 'Latitude must be between -90 and 90'],
+      max: [90, 'Latitude must be between -90 and 90']
+    },
+    lng: {
+      type: Number,
+      required: [true, 'Longitude is required'],
+      min: [-180, 'Longitude must be between -180 and 180'],
+      max: [180, 'Longitude must be between -180 and 180']
+    }
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  source: {
+    type: String,
+    default: 'user'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+const HiddenPlace = mongoose.model('HiddenPlace', hiddenPlaceSchema);
+
+module.exports = { User, HiddenPlace };

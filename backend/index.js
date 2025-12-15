@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./db');
-const { User } = require('./models');
+const { User, HiddenPlace } = require('./models');
 const { generateToken, authenticateToken, validateSignup, validateLogin } = require('./middleware');
 
 const app = express();
@@ -122,6 +122,102 @@ app.post('/api/auth/login', validateLogin, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Internal server error during login'
+    });
+  }
+});
+
+// Hidden Places Routes
+
+// POST /api/places - Add a new hidden place (Protected)
+app.post('/api/places', authenticateToken, async (req, res) => {
+  try {
+    const { title, description, imageUrl, location } = req.body;
+
+    // Validate required fields
+    if (!title || !description || !location) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title, description, and location are required'
+      });
+    }
+
+    // Validate location coordinates
+    if (!location.lat || !location.lng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Location must include both latitude and longitude'
+      });
+    }
+
+    if (location.lat < -90 || location.lat > 90) {
+      return res.status(400).json({
+        success: false,
+        message: 'Latitude must be between -90 and 90'
+      });
+    }
+
+    if (location.lng < -180 || location.lng > 180) {
+      return res.status(400).json({
+        success: false,
+        message: 'Longitude must be between -180 and 180'
+      });
+    }
+
+    // Create new hidden place
+    const hiddenPlace = new HiddenPlace({
+      title,
+      description,
+      imageUrl,
+      location: {
+        lat: location.lat,
+        lng: location.lng
+      },
+      createdBy: req.userId
+    });
+
+    await hiddenPlace.save();
+
+    // Populate creator info and return
+    await hiddenPlace.populate('createdBy', 'name avatar');
+
+    res.status(201).json({
+      success: true,
+      message: 'Hidden place added successfully',
+      data: {
+        place: hiddenPlace
+      }
+    });
+
+  } catch (error) {
+    console.error('Add hidden place error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error while adding hidden place'
+    });
+  }
+});
+
+// GET /api/places - Get all hidden places (Public)
+app.get('/api/places', async (req, res) => {
+  try {
+    const hiddenPlaces = await HiddenPlace.find()
+      .populate('createdBy', 'name avatar')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      message: 'Hidden places retrieved successfully',
+      data: {
+        places: hiddenPlaces,
+        count: hiddenPlaces.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Get hidden places error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error while retrieving hidden places'
     });
   }
 });
