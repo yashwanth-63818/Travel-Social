@@ -222,6 +222,144 @@ app.get('/api/places', async (req, res) => {
   }
 });
 
+// GET /api/places/system - Fetch and save places from OpenStreetMap (Public)
+app.get('/api/places/system', async (req, res) => {
+  try {
+    const { lat, lng, radius = 10000 } = req.query; // Default 10km radius
+
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Latitude and longitude parameters are required'
+      });
+    }
+
+    // Validate coordinates
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid coordinates provided'
+      });
+    }
+
+    // OpenStreetMap Overpass API query for nature places
+    const overpassQuery = `
+      [out:json][timeout:25];
+      (
+        node["tourism"="viewpoint"](around:${radius},${lat},${lng});
+        node["natural"="waterfall"](around:${radius},${lat},${lng});
+        node["natural"="peak"](around:${radius},${lat},${lng});
+        node["leisure"="park"](around:${radius},${lat},${lng});
+        node["natural"="beach"](around:${radius},${lat},${lng});
+        node["natural"="hot_spring"](around:${radius},${lat},${lng});
+        way["tourism"="viewpoint"](around:${radius},${lat},${lng});
+        way["natural"="waterfall"](around:${radius},${lat},${lng});
+        way["leisure"="park"](around:${radius},${lat},${lng});
+        way["natural"="beach"](around:${radius},${lat},${lng});
+      );
+      out geom;
+    `;
+
+    // Fetch data from Overpass API
+    const overpassUrl = 'https://overpass-api.de/api/interpreter';
+    const response = await fetch(overpassUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `data=${encodeURIComponent(overpassQuery)}`
+    });
+
+    if (!response.ok) {
+      throw new Error(`Overpass API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const newPlaces = [];
+    let duplicateCount = 0;
+
+    for (const element of data.elements) {
+      if (!element.lat || !element.lon) {
+        // For ways, calculate centroid
+        if (element.geometry && element.geometry.length > 0) {
+          const coords = element.geometry;
+          element.lat = coords.reduce((sum, coord) => sum + coord.lat, 0) / coords.length;
+          element.lon = coords.reduce((sum, coord) => sum + coord.lon, 0) / coords.length;
+        } else {
+          continue;
+        }
+      }
+
+      // Check for existing place at same coordinates (within 100m tolerance)
+      const existingPlace = await HiddenPlace.findOne({
+        'location.lat': { $gte: element.lat - 0.001, $lte: element.lat + 0.001 },
+        'location.lng': { $gte: element.lon - 0.001, $lte: element.lon + 0.001 },
+        source: 'system'
+      });
+
+      if (existingPlace) {
+        duplicateCount++;
+        continue;
+      }
+
+      // Generate title and description
+      const tags = element.tags || {};
+      const name = tags.name || tags['name:en'] || 'Hidden Natural Place';
+      
+      let description = 'A beautiful natural place discovered through OpenStreetMap data.';
+      if (tags.natural) {
+        description = `A scenic ${tags.natural} perfect for nature enthusiasts.`;
+      } else if (tags.tourism === 'viewpoint') {
+        description = 'A scenic viewpoint offering beautiful vistas.';
+      } else if (tags.leisure === 'park') {
+        description = 'A peaceful park area ideal for relaxation and recreation.';
+      }
+
+      // Add elevation info if available
+      if (tags.ele) {
+        description += ` Located at ${tags.ele}m elevation.`;
+      }
+
+      try {
+        const newPlace = new HiddenPlace({
+          title: name,
+          description: description,
+          location: {
+            lat: element.lat,
+            lng: element.lon
+          },
+          source: 'system'
+          // Note: createdBy is not required for system-generated places
+        });
+
+        await newPlace.save();
+        newPlaces.push(newPlace);
+      } catch (saveError) {
+        console.error('Error saving place:', saveError.message);
+        continue;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully processed ${data.elements.length} places from OpenStreetMap`,
+      data: {
+        newPlaces: newPlaces,
+        addedCount: newPlaces.length,
+        duplicateCount: duplicateCount,
+        totalProcessed: data.elements.length
+      }
+    });
+
+  } catch (error) {
+    console.error('System places fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error while fetching system places'
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
