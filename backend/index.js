@@ -360,6 +360,113 @@ app.get('/api/places/system', async (req, res) => {
   }
 });
 
+// Haversine formula to calculate distance between two coordinates
+const calculateDistance = (lat1, lng1, lat2, lng2) => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in kilometers
+};
+
+// GET /api/places/nearby - Get places within specified radius (Public)
+app.get('/api/places/nearby', async (req, res) => {
+  try {
+    const { lat, lng, radius = 10 } = req.query; // Default radius 10km
+
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Latitude and longitude parameters are required'
+      });
+    }
+
+    // Validate coordinates
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const searchRadius = parseFloat(radius);
+
+    if (isNaN(latitude) || isNaN(longitude) || isNaN(searchRadius)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid numeric values for coordinates or radius'
+      });
+    }
+
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid coordinate values'
+      });
+    }
+
+    if (searchRadius < 0 || searchRadius > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Radius must be between 0 and 100 kilometers'
+      });
+    }
+
+    // Get all hidden places from database
+    const allPlaces = await HiddenPlace.find()
+      .populate('createdBy', 'name avatar')
+      .sort({ createdAt: -1 });
+
+    // Filter places within radius using Haversine formula
+    const nearbyPlaces = allPlaces.filter(place => {
+      const distance = calculateDistance(
+        latitude, 
+        longitude, 
+        place.location.lat, 
+        place.location.lng
+      );
+      return distance <= searchRadius;
+    });
+
+    // Add distance to each place for frontend use
+    const placesWithDistance = nearbyPlaces.map(place => ({
+      ...place.toObject(),
+      distance: Math.round(calculateDistance(
+        latitude, 
+        longitude, 
+        place.location.lat, 
+        place.location.lng
+      ) * 100) / 100 // Round to 2 decimal places
+    }));
+
+    // Sort by distance (closest first)
+    placesWithDistance.sort((a, b) => a.distance - b.distance);
+
+    res.status(200).json({
+      success: true,
+      message: `Found ${placesWithDistance.length} hidden places within ${searchRadius}km`,
+      data: {
+        places: placesWithDistance,
+        count: placesWithDistance.length,
+        searchCenter: {
+          lat: latitude,
+          lng: longitude
+        },
+        searchRadius: searchRadius,
+        sources: {
+          user: placesWithDistance.filter(p => p.source === 'user').length,
+          system: placesWithDistance.filter(p => p.source === 'system').length
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Nearby places search error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error while searching nearby places'
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
