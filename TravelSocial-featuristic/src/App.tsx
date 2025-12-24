@@ -10,10 +10,18 @@ import Login from './components/Login';
 import Profile from './components/Profile';
 import BikeRiding from './components/BikeRiding';
 import MoreMenu from './components/MoreMenu';
+import { PostsProvider } from './contexts/PostsContext';
+
+interface LocationData {
+  name: string;
+  lat: number;
+  lon: number;
+}
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
 
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
@@ -25,32 +33,48 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  const handleLocationSelect = (location: LocationData) => {
+    setSelectedLocation(location);
+  };
+
   return (
-    <Router>
-      <div className="min-h-screen bg-black">
-        <Navbar 
-          isAuthenticated={isAuthenticated} 
-          onLogout={handleLogout}
-          currentUser={currentUser}
-        />
-        <Routes>
-          <Route path="/" element={<HomePage isAuthenticated={isAuthenticated} />} />
-          <Route path="/map" element={<MapView />} />
-          <Route path="/feed" element={
-            isAuthenticated ? <SocialFeed currentUser={currentUser} /> : <Navigate to="/login" />
-          } />
-          <Route path="/search" element={<SearchPanel />} />
-          <Route path="/packages" element={<Packages />} />
-          <Route path="/bike-riding" element={<BikeRiding />} />
-          <Route path="/profile" element={
-            isAuthenticated ? <Profile user={currentUser} /> : <Navigate to="/login" />
-          } />
-          <Route path="/login" element={
-            isAuthenticated ? <Navigate to="/" /> : <Login onLogin={handleLogin} />
-          } />
-          <Route path="/more" element={<MoreMenu />} />
-        </Routes>
-      </div>
-    </Router>
+    <PostsProvider>
+      <Router>
+        <div className="min-h-screen bg-black">
+          <Navbar 
+            isAuthenticated={isAuthenticated} 
+            onLogout={handleLogout}
+            currentUser={currentUser}
+          />
+          <Routes>
+            <Route path="/" element={<HomePage isAuthenticated={isAuthenticated} />} />
+            <Route path="/map" element={
+              <MapView 
+                selectedLocation={selectedLocation}
+                onLocationSelect={handleLocationSelect}
+              />
+            } />
+            <Route path="/feed" element={
+              isAuthenticated ? 
+              <SocialFeed 
+                currentUser={currentUser} 
+                onLocationSelect={handleLocationSelect}
+              /> : 
+              <Navigate to="/login" />
+            } />
+            <Route path="/search" element={<SearchPanel />} />
+            <Route path="/packages" element={<Packages />} />
+            <Route path="/bike-riding" element={<BikeRiding />} />
+            <Route path="/profile" element={
+              isAuthenticated ? <Profile user={currentUser} /> : <Navigate to="/login" />
+            } />
+            <Route path="/login" element={
+              isAuthenticated ? <Navigate to="/" /> : <Login onLogin={handleLogin} />
+            } />
+            <Route path="/more" element={<MoreMenu />} />
+          </Routes>
+        </div>
+      </Router>
+    </PostsProvider>
   );
 }

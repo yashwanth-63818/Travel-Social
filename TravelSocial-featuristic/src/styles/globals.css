@@ -39,3 +39,22 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #FFEB3B;
 }
+
+/* Leaflet map styles */
+.leaflet-container {
+  font-family: inherit !important;
+}
+
+.custom-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+
+.leaflet-popup-tip {
+  background: white !important;
+}
