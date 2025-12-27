@@ -22,7 +22,7 @@ export default function Navbar({ isAuthenticated, onLogout, currentUser }: Navba
     { path: '/', label: 'Home', icon: Plane },
     { path: '/map', label: 'Map', icon: Map },
     { path: '/feed', label: 'Feed', icon: Users },
-    { path: '/search', label: 'Search', icon: Search },
+    { path: '/book', label: 'Book', icon: Search },
     { path: '/packages', label: 'Packages', icon: Package },
     { path: '/bike-riding', label: 'Bike Riding', icon: Bike },
   ];

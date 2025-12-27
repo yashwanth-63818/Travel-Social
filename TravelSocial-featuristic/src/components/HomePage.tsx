@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { MapPin, Heart, MessageCircle, Share2, Eye, TrendingUp } from 'lucide-react';
+import { MapPin, Heart, MessageCircle, Share2, Eye, TrendingUp, Plane, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 
@@ -188,6 +188,66 @@ export default function HomePage({ isAuthenticated }: HomePageProps) {
               </motion.button>
             </Link>
           </motion.div>
+        </div>
+      </motion.section>
+
+      {/* Quick Search Section */}
+      <motion.section
+        initial={{ opacity: 0, y: 50 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="py-12 bg-zinc-900/50"
+      >
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl md:text-4xl text-yellow-400 mb-4">
+              Search Your Next Adventure
+            </h2>
+            <p className="text-gray-400 text-lg">
+              Find the best deals on flights and hotels with our smart search
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <Link to="/book">
+              <motion.div
+                whileHover={{ scale: 1.05, y: -5 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-zinc-900 border-2 border-yellow-400 rounded-xl p-6 cursor-pointer hover:shadow-xl hover:shadow-yellow-400/20 transition-all"
+              >
+                <div className="flex items-center mb-4">
+                  <Plane className="w-8 h-8 text-yellow-400 mr-3" />
+                  <h3 className="text-2xl text-white font-semibold">Flight Search</h3>
+                </div>
+                <p className="text-gray-400 mb-4">
+                  Search and compare flights to destinations worldwide with smart city autocomplete
+                </p>
+                <div className="flex items-center text-yellow-400">
+                  <span>Search Flights</span>
+                  <MapPin className="w-4 h-4 ml-2" />
+                </div>
+              </motion.div>
+            </Link>
+            
+            <Link to="/book">
+              <motion.div
+                whileHover={{ scale: 1.05, y: -5 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-zinc-900 border-2 border-yellow-400 rounded-xl p-6 cursor-pointer hover:shadow-xl hover:shadow-yellow-400/20 transition-all"
+              >
+                <div className="flex items-center mb-4">
+                  <Calendar className="w-8 h-8 text-yellow-400 mr-3" />
+                  <h3 className="text-2xl text-white font-semibold">Hotel Search</h3>
+                </div>
+                <p className="text-gray-400 mb-4">
+                  Discover amazing hotels and accommodations in any city with location search
+                </p>
+                <div className="flex items-center text-yellow-400">
+                  <span>Search Hotels</span>
+                  <MapPin className="w-4 h-4 ml-2" />
+                </div>
+              </motion.div>
+            </Link>
+          </div>
         </div>
       </motion.section>
 

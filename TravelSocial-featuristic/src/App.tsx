@@ -11,6 +11,8 @@ import Profile from './components/Profile';
 import BikeRiding from './components/BikeRiding';
 import MoreMenu from './components/MoreMenu';
 import Settings from './components/Settings';
+import FlightResultsPage from './components/FlightResultsPage';
+import HotelResultsPage from './components/HotelResultsPage';
 import { PostsProvider } from './contexts/PostsContext';
 
 interface LocationData {
@@ -63,8 +65,12 @@ export default function App() {
               /> : 
               <Navigate to="/login" />
             } />
-            <Route path="/search" element={<SearchPanel />} />
+            <Route path="/book" element={<SearchPanel />} />
             <Route path="/packages" element={<Packages />} />
+            <Route path="/booking" element={<Navigate to="/book" replace />} />
+            <Route path="/search" element={<Navigate to="/book" replace />} />
+            <Route path="/flights/results" element={<FlightResultsPage />} />
+            <Route path="/hotels/results" element={<HotelResultsPage />} />
             <Route path="/bike-riding" element={<BikeRiding />} />
             <Route path="/profile" element={
               isAuthenticated ? <Profile user={currentUser} /> : <Navigate to="/login" />

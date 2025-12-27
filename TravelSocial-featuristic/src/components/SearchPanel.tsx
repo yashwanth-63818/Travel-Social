@@ -1,9 +1,11 @@
 import { motion } from 'motion/react';
 import { useState } from 'react';
-import { Plane, Hotel, Calendar, MapPin, Users, Search, ExternalLink, TrendingDown, Star } from 'lucide-react';
+import { Plane, Hotel, Calendar, MapPin, Users, Search, ExternalLink, TrendingDown, Star, Loader2, Info } from 'lucide-react';
 
 export default function SearchPanel() {
   const [activeTab, setActiveTab] = useState<'flights' | 'hotels'>('flights');
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   
   const [flightSearch, setFlightSearch] = useState({
     from: '',
@@ -18,6 +20,141 @@ export default function SearchPanel() {
     checkOut: '',
     guests: 1
   });
+
+  const [dynamicFlightResults, setDynamicFlightResults] = useState<any[]>([]);
+  const [dynamicHotelResults, setDynamicHotelResults] = useState<any[]>([]);
+
+  // Generate mock flight results with realistic INR pricing
+  const generateFlightResults = (from: string, to: string) => {
+    const airlines = [
+      { name: 'IndiGo', type: 'low-cost', link: 'https://www.goindigo.in' },
+      { name: 'AirAsia India', type: 'low-cost', link: 'https://www.airasia.com' },
+      { name: 'SpiceJet', type: 'low-cost', link: 'https://www.spicejet.com' },
+      { name: 'Vistara', type: 'full-service', link: 'https://www.airvistara.com' },
+      { name: 'Air India', type: 'full-service', link: 'https://www.airindia.in' },
+      { name: 'Jet Airways', type: 'full-service', link: 'https://www.jetairways.com' }
+    ];
+    
+    const results = [];
+    const usedAirlines = [];
+    
+    for (let i = 0; i < 4; i++) {
+      // Select unique airline for each result
+      let airline;
+      do {
+        airline = airlines[Math.floor(Math.random() * airlines.length)];
+      } while (usedAirlines.includes(airline.name) && usedAirlines.length < airlines.length);
+      usedAirlines.push(airline.name);
+      
+      // Realistic INR pricing based on domestic routes
+      const baseFare = 3500; // Starting from ₹3,500
+      const variability = Math.floor(Math.random() * 3000); // Up to ₹3,000 variation
+      let finalPrice = baseFare + variability;
+      
+      // Airline type adjustment
+      if (airline.type === 'low-cost') {
+        finalPrice = finalPrice - Math.floor(Math.random() * 800); // Slightly cheaper
+      } else {
+        finalPrice = finalPrice + Math.floor(Math.random() * 1200); // Slightly more expensive
+      }
+      
+      // Ensure price stays within realistic range
+      finalPrice = Math.max(3500, Math.min(finalPrice, 18000));
+      
+      const departureHour = Math.floor(Math.random() * 12) + 6;
+      const arrivalHour = (departureHour + Math.floor(Math.random() * 8) + 4) % 24;
+      
+      // Provider links for booking
+      const providerLinks = [
+        'https://www.skyscanner.co.in',
+        'https://www.makemytrip.com',
+        airline.link
+      ];
+      
+      results.push({
+        id: i + 1,
+        airline: airline.name,
+        from: from || "Chennai",
+        to: to || "Mumbai",
+        departure: `${departureHour.toString().padStart(2, '0')}:${Math.floor(Math.random() * 6) * 10}0`,
+        arrival: `${arrivalHour.toString().padStart(2, '0')}:${Math.floor(Math.random() * 6) * 10}0`,
+        duration: `${Math.floor(Math.random() * 4) + 1}h ${Math.floor(Math.random() * 60)}m`,
+        price: `₹${finalPrice.toLocaleString('en-IN')}`,
+        type: Math.random() > 0.6 ? "Direct" : "1 Stop",
+        link: providerLinks[Math.floor(Math.random() * providerLinks.length)],
+        savings: i === 0 ? "Best Deal" : `Save ${Math.floor(Math.random() * 20) + 5}%`
+      });
+    }
+    
+    return results.sort((a, b) => {
+      const priceA = parseInt(a.price.replace(/₹|,/g, ''));
+      const priceB = parseInt(b.price.replace(/₹|,/g, ''));
+      return priceA - priceB;
+    });
+  };
+
+  // Generate mock hotel results
+  const generateHotelResults = (location: string) => {
+    const hotelNames = ['Grand Hyatt', 'Marriott', 'Hilton', 'Westin', 'Sheraton', 'Radisson'];
+    const results = [];
+    
+    for (let i = 0; i < 4; i++) {
+      const hotelName = `${hotelNames[Math.floor(Math.random() * hotelNames.length)]} ${location || "Downtown"}`;
+      const basePrice = Math.floor(Math.random() * 200) + 80;
+      
+      results.push({
+        id: i + 1,
+        name: hotelName,
+        location: location || "City Center",
+        rating: (Math.random() * 1.5 + 3.5).toFixed(1),
+        reviews: Math.floor(Math.random() * 2000) + 500,
+        price: `$${basePrice + (i * 30)}`,
+        originalPrice: `$${basePrice + (i * 30) + 50}`,
+        image: `https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&h=200&fit=crop`,
+        features: ["WiFi", "Pool", "Gym", "Restaurant"],
+        link: "https://www.booking.com",
+        discount: `${Math.floor(Math.random() * 20) + 15}% OFF`
+      });
+    }
+    
+    return results.sort((a, b) => parseInt(a.price.slice(1)) - parseInt(b.price.slice(1)));
+  };
+
+  const handleFlightSearch = async () => {
+    if (!flightSearch.from || !flightSearch.to) {
+      alert('Please enter departure and destination cities');
+      return;
+    }
+
+    setIsSearching(true);
+    setHasSearched(false);
+
+    // Simulate API call delay
+    setTimeout(() => {
+      const results = generateFlightResults(flightSearch.from, flightSearch.to);
+      setDynamicFlightResults(results);
+      setHasSearched(true);
+      setIsSearching(false);
+    }, 1500);
+  };
+
+  const handleHotelSearch = async () => {
+    if (!hotelSearch.location) {
+      alert('Please enter a destination');
+      return;
+    }
+
+    setIsSearching(true);
+    setHasSearched(false);
+
+    // Simulate API call delay
+    setTimeout(() => {
+      const results = generateHotelResults(hotelSearch.location);
+      setDynamicHotelResults(results);
+      setHasSearched(true);
+      setIsSearching(false);
+    }, 1500);
+  };
 
   const flightResults = [
     {
@@ -132,15 +269,6 @@ export default function SearchPanel() {
   return (
     <div className="min-h-screen bg-black text-white py-6">
       <div className="container mx-auto px-4">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
-          <h1 className="text-4xl mb-2 text-yellow-400">Search & Book</h1>
-          <p className="text-gray-400">Find the best deals on flights and hotels</p>
-        </motion.div>
-
         {/* Tab Switcher */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -235,9 +363,20 @@ export default function SearchPanel() {
                 whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(255, 215, 0, 0.3)" }}
                 whileTap={{ scale: 0.98 }}
                 className="w-full bg-yellow-400 text-black py-3 rounded-lg flex items-center justify-center gap-2"
+                onClick={handleFlightSearch}
+                disabled={isSearching}
               >
-                <Search className="w-5 h-5" />
-                Search Flights
+                {isSearching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Searching Flights...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-5 h-5" />
+                    Search Flights
+                  </>
+                )}
               </motion.button>
             </div>
 
@@ -250,7 +389,15 @@ export default function SearchPanel() {
                   <span className="text-sm">Showing best prices</span>
                 </div>
               </div>
-              {flightResults.map((flight, index) => (
+              
+              {/* Price Disclaimer */}
+              <div className="bg-blue-900/30 border border-blue-500/30 rounded-lg p-3 mb-4">
+                <p className="text-blue-300 text-sm flex items-center gap-2">
+                  <Info className="w-4 h-4" />
+                  Prices are indicative. Booking happens on provider site.
+                </p>
+              </div>
+              {(hasSearched ? dynamicFlightResults : flightResults).map((flight, index) => (
                 <motion.div
                   key={flight.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -372,9 +519,20 @@ export default function SearchPanel() {
                 whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(255, 215, 0, 0.3)" }}
                 whileTap={{ scale: 0.98 }}
                 className="w-full bg-yellow-400 text-black py-3 rounded-lg flex items-center justify-center gap-2"
+                onClick={handleHotelSearch}
+                disabled={isSearching}
               >
-                <Search className="w-5 h-5" />
-                Search Hotels
+                {isSearching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Searching Hotels...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-5 h-5" />
+                    Search Hotels
+                  </>
+                )}
               </motion.button>
             </div>
 
@@ -387,7 +545,7 @@ export default function SearchPanel() {
                   <span className="text-sm">Top rated properties</span>
                 </div>
               </div>
-              {hotelResults.map((hotel, index) => (
+              {(hasSearched ? dynamicHotelResults : hotelResults).map((hotel, index) => (
                 <motion.div
                   key={hotel.id}
                   initial={{ opacity: 0, y: 20 }}

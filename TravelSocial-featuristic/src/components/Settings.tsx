@@ -2,12 +2,55 @@ import { motion } from 'motion/react';
 import { Settings as SettingsIcon, Bell, Globe, Moon, Sun, Shield, Smartphone } from 'lucide-react';
 import { useState } from 'react';
 
+// Type definitions for settings items
+interface SettingsOption {
+  value: string;
+  label: string;
+}
+
+interface BaseSettingsItem {
+  icon: any;
+  label: string;
+  description: string;
+}
+
+interface ActionSettingsItem extends BaseSettingsItem {
+  action: () => void;
+  toggle?: never;
+  value?: never;
+  onChange?: never;
+  options?: never;
+}
+
+interface ToggleSettingsItem extends BaseSettingsItem {
+  toggle: true;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  action?: never;
+  options?: never;
+}
+
+interface SelectSettingsItem extends BaseSettingsItem {
+  value: string;
+  options: SettingsOption[];
+  onChange?: (value: string) => void;
+  toggle?: never;
+  action?: never;
+}
+
+type SettingsItem = ActionSettingsItem | ToggleSettingsItem | SelectSettingsItem;
+
+interface SettingsSection {
+  title: string;
+  items: SettingsItem[];
+}
+
 export default function Settings() {
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
   const [language, setLanguage] = useState('en');
 
-  const settingsSections = [
+  const settingsSections: SettingsSection[] = [
     {
       title: 'Account',
       items: [
@@ -112,7 +155,7 @@ export default function Settings() {
                         x: 5,
                         backgroundColor: 'rgba(255, 215, 0, 0.1)' 
                       }}
-                      onClick={item.action}
+                      onClick={'action' in item ? item.action : undefined}
                       className="flex items-center justify-between p-4 rounded-lg cursor-pointer transition-all"
                     >
                       <div className="flex items-center gap-4">
@@ -146,12 +189,13 @@ export default function Settings() {
                             }`}
                           />
                         </motion.button>
-                      ) : item.options ? (
+                      ) : 'options' in item && item.options ? (
                         <select 
-                          value={item.value}
+                          value={item.value as string}
+                          onChange={(e) => item.onChange && item.onChange(e.target.value)}
                           className="bg-zinc-800 text-white border border-gray-600 rounded px-3 py-1"
                         >
-                          {item.options.map(option => (
+                          {item.options.map((option: SettingsOption) => (
                             <option key={option.value} value={option.value}>
                               {option.label}
                             </option>

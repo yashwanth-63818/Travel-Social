@@ -22,15 +22,32 @@ interface MapViewProps {
   onLocationSelect?: (location: LocationData) => void;
 }
 
+interface MarkerGroups {
+  food: L.LayerGroup;
+  bus: L.LayerGroup;
+  airport: L.LayerGroup;
+  fuel: L.LayerGroup;
+  atm: L.LayerGroup;
+  railway: L.LayerGroup;
+  hidden: L.LayerGroup;
+  hotels: L.LayerGroup;
+  motels: L.LayerGroup;
+  [key: string]: L.LayerGroup;
+}
+
+interface CachedData {
+  [key: string]: any;
+}
+
 function MapView({ selectedLocation, onLocationSelect }: MapViewProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [activeFilters, setActiveFilters] = useState(new Set<string>());
-  const [loadingFilters, setLoadingFilters] = useState(new Set<string>());
-  const [cachedData, setCachedData] = useState<any>({});
-  const mapRef = useRef<any>(null);
-  const markerGroupsRef = useRef<any>(null);
-  const locationMarkerRef = useRef<any>(null);
-  const postsMarkersRef = useRef<any>(null);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set<string>());
+  const [loadingFilters, setLoadingFilters] = useState<Set<string>>(new Set<string>());
+  const [cachedData, setCachedData] = useState<CachedData>({});
+  const mapRef = useRef<L.Map | null>(null);
+  const markerGroupsRef = useRef<MarkerGroups | null>(null);
+  const locationMarkerRef = useRef<L.Marker | null>(null);
+  const postsMarkersRef = useRef<L.LayerGroup | null>(null);
   const { posts } = usePostsContext();
 
   // Update or create location marker
@@ -138,7 +155,9 @@ function MapView({ selectedLocation, onLocationSelect }: MapViewProps) {
               className: 'post-popup'
             });
 
-          postsMarkersRef.current.addLayer(marker);
+          if (postsMarkersRef.current) {
+            postsMarkersRef.current.addLayer(marker);
+          }
         } catch (error) {
           console.warn('Failed to create marker for post:', post.id, error);
         }
@@ -606,7 +625,7 @@ out geom;`
                   boxShadow: isActive ? "0 4px 12px rgba(250, 204, 21, 0.2)" : "none",
                   opacity: isLoading ? 0.7 : 1
                 }}
-                onMouseOver={(e: any) => {
+                onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) => {
                   if (!isActive && !isLoading) {
                     e.currentTarget.style.backgroundColor = "#2a2a2a";
                     e.currentTarget.style.borderColor = "#FACC15";
@@ -614,7 +633,7 @@ out geom;`
                     e.currentTarget.style.boxShadow = "0 4px 12px rgba(250, 204, 21, 0.2)";
                   }
                 }}
-                onMouseOut={(e: any) => {
+                onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) => {
                   if (!isActive && !isLoading) {
                     e.currentTarget.style.backgroundColor = "#1e1e1e";
                     e.currentTarget.style.borderColor = "#333";
@@ -680,7 +699,7 @@ out geom;`
                   boxShadow: isActive ? "0 4px 12px rgba(250, 204, 21, 0.2)" : "none",
                   opacity: isLoading ? 0.7 : 1
                 }}
-                onMouseOver={(e: any) => {
+                onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) => {
                   if (!isActive && !isLoading) {
                     e.currentTarget.style.backgroundColor = "#2a2a2a";
                     e.currentTarget.style.borderColor = "#FACC15";
@@ -688,7 +707,7 @@ out geom;`
                     e.currentTarget.style.boxShadow = "0 4px 12px rgba(250, 204, 21, 0.2)";
                   }
                 }}
-                onMouseOut={(e: any) => {
+                onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) => {
                   if (!isActive && !isLoading) {
                     e.currentTarget.style.backgroundColor = "#1e1e1e";
                     e.currentTarget.style.borderColor = "#333";
@@ -754,7 +773,7 @@ out geom;`
             <button
               onClick={toggleExpanded}
               style={{
-                backgroundColor: "transparent",
+                backgroundColor: "rgba(250, 204, 21, 0.05)",
                 color: "#FACC15",
                 border: "2px solid #FACC15",
                 borderRadius: "20px",
@@ -765,16 +784,15 @@ out geom;`
                 minWidth: "180px",
                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 textTransform: "uppercase",
-                letterSpacing: "0.5px",
-                backgroundColor: "rgba(250, 204, 21, 0.05)"
+                letterSpacing: "0.5px"
               }}
-              onMouseOver={(e) => {
+              onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) => {
                 e.currentTarget.style.backgroundColor = "#FACC15";
                 e.currentTarget.style.color = "#0a0a0a";
                 e.currentTarget.style.transform = "translateY(-2px)";
                 e.currentTarget.style.boxShadow = "0 8px 20px rgba(250, 204, 21, 0.3)";
               }}
-              onMouseOut={(e) => {
+              onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) => {
                 e.currentTarget.style.backgroundColor = "rgba(250, 204, 21, 0.05)";
                 e.currentTarget.style.color = "#FACC15";
                 e.currentTarget.style.transform = "translateY(0)";
@@ -807,13 +825,13 @@ out geom;`
             letterSpacing: "0.5px",
             minWidth: "200px"
           }}
-          onMouseOver={(e) => {
+          onMouseOver={(e: React.MouseEvent<HTMLButtonElement>) => {
             e.currentTarget.style.backgroundColor = "#FACC15";
             e.currentTarget.style.color = "#0a0a0a";
             e.currentTarget.style.transform = "translateY(-2px)";
             e.currentTarget.style.boxShadow = "0 8px 20px rgba(250, 204, 21, 0.3)";
           }}
-          onMouseOut={(e) => {
+          onMouseOut={(e: React.MouseEvent<HTMLButtonElement>) => {
             e.currentTarget.style.backgroundColor = "rgba(250, 204, 21, 0.05)";
             e.currentTarget.style.color = "#FACC15";
             e.currentTarget.style.transform = "translateY(0)";
