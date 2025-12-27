@@ -10,6 +10,7 @@ import Login from './components/Login';
 import Profile from './components/Profile';
 import BikeRiding from './components/BikeRiding';
 import MoreMenu from './components/MoreMenu';
+import Settings from './components/Settings';
 import { PostsProvider } from './contexts/PostsContext';
 
 interface LocationData {
@@ -67,6 +68,9 @@ export default function App() {
             <Route path="/bike-riding" element={<BikeRiding />} />
             <Route path="/profile" element={
               isAuthenticated ? <Profile user={currentUser} /> : <Navigate to="/login" />
+            } />
+            <Route path="/settings" element={
+              isAuthenticated ? <Settings /> : <Navigate to="/login" />
             } />
             <Route path="/login" element={
               isAuthenticated ? <Navigate to="/" /> : <Login onLogin={handleLogin} />
