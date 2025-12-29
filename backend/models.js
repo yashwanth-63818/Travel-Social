@@ -34,14 +34,6 @@ const userSchema = new mongoose.Schema({
   joinDate: {
     type: Date,
     default: Date.now
-  },
-  savedSpots: {
-    type: Number,
-    default: 0
-  },
-  posts: {
-    type: Number,
-    default: 0
   }
 }, {
   timestamps: true
@@ -60,6 +52,116 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 };
 
 const User = mongoose.model('User', userSchema);
+
+// Post Schema
+const postSchema = new mongoose.Schema({
+  author: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  content: {
+    type: String,
+    required: [true, 'Content is required'],
+    trim: true,
+    maxlength: [2000, 'Content cannot exceed 2000 characters']
+  },
+  mediaUrl: {
+    type: String,
+    trim: true
+  },
+  mediaType: {
+    type: String,
+    enum: ['image', 'video', null],
+    default: null
+  },
+  location: {
+    type: String,
+    trim: true
+  },
+  locationData: {
+    name: String,
+    lat: Number,
+    lon: Number
+  }
+}, {
+  timestamps: true
+});
+
+const Post = mongoose.model('Post', postSchema);
+
+// Comment Schema
+const commentSchema = new mongoose.Schema({
+  post: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post',
+    required: true
+  },
+  author: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  text: {
+    type: String,
+    required: [true, 'Comment text is required'],
+    trim: true,
+    maxlength: [500, 'Comment cannot exceed 500 characters']
+  }
+}, {
+  timestamps: true
+});
+
+const Comment = mongoose.model('Comment', commentSchema);
+
+// Like Schema
+const likeSchema = new mongoose.Schema({
+  post: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post',
+    required: true
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  }
+}, {
+  timestamps: true
+});
+
+// Prevent duplicate likes
+likeSchema.index({ post: 1, user: 1 }, { unique: true });
+
+const Like = mongoose.model('Like', likeSchema);
+
+// Follow Schema
+const followSchema = new mongoose.Schema({
+  follower: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  following: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  }
+}, {
+  timestamps: true
+});
+
+// Prevent duplicate follows and self-follows
+followSchema.index({ follower: 1, following: 1 }, { unique: true });
+followSchema.pre('save', function(next) {
+  if (this.follower.equals(this.following)) {
+    next(new Error('Users cannot follow themselves'));
+  } else {
+    next();
+  }
+});
+
+const Follow = mongoose.model('Follow', followSchema);
 
 // Hidden Place Schema
 const hiddenPlaceSchema = new mongoose.Schema({
@@ -115,4 +217,4 @@ const hiddenPlaceSchema = new mongoose.Schema({
 
 const HiddenPlace = mongoose.model('HiddenPlace', hiddenPlaceSchema);
 
-module.exports = { User, HiddenPlace };
+module.exports = { User, Post, Comment, Like, Follow, HiddenPlace };

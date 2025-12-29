@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Plane, Calendar, Users, Search, ArrowRightLeft, Loader2, ExternalLink, Clock, Star } from 'lucide-react';
+import { Plane, Calendar, Users, Search, ArrowRightLeft, Loader2, ExternalLink, Clock, Star, TrendingDown } from 'lucide-react';
 import LocationAutocomplete, { Location } from './LocationAutocomplete';
+import { generateFlightPrices, FlightResult, formatPrice, getLowestFlightPrice } from '../utils/metaSearchPricing';
 
 interface FlightSearchData {
   from: Location | null;
@@ -9,18 +10,6 @@ interface FlightSearchData {
   date: string;
   passengers: number;
   tripType: 'roundtrip' | 'oneway';
-}
-
-interface MockFlightResult {
-  id: string;
-  airline: string;
-  price: number;
-  currency: string;
-  duration: string;
-  departure: string;
-  arrival: string;
-  stops: string;
-  bookingUrl: string;
 }
 
 const FlightBooking: React.FC = () => {
@@ -32,33 +21,8 @@ const FlightBooking: React.FC = () => {
     tripType: 'roundtrip'
   });
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<MockFlightResult[]>([]);
+  const [searchResults, setSearchResults] = useState<FlightResult[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
-  const generateMockResults = (from: string, to: string): MockFlightResult[] => {
-    const airlines = [
-      { name: 'Skyscanner', basePrice: 4500, url: `https://www.skyscanner.co.in/transport/flights/${from.toLowerCase()}/${to.toLowerCase()}` },
-      { name: 'AirAsia', basePrice: 5200, url: `https://www.airasia.com/en/gb` },
-      { name: 'IndiGo', basePrice: 4800, url: `https://www.goindigo.in/` },
-      { name: 'MakeMyTrip', basePrice: 4700, url: `https://www.makemytrip.com/flight/search?from=${from}&to=${to}` }
-    ];
-
-    return airlines.map((airline, index) => {
-      const priceVariation = Math.random() * 1000;
-      const finalPrice = Math.round(airline.basePrice + priceVariation);
-      
-      return {
-        id: `flight-${index}`,
-        airline: airline.name,
-        price: finalPrice,
-        currency: 'INR',
-        duration: `${Math.floor(Math.random() * 3) + 1}h ${Math.floor(Math.random() * 60)}m`,
-        departure: `${Math.floor(Math.random() * 12) + 6}:${Math.floor(Math.random() * 6) * 10}`,
-        arrival: `${Math.floor(Math.random() * 12) + 12}:${Math.floor(Math.random() * 6) * 10}`,
-        stops: Math.random() > 0.5 ? 'Direct' : '1 Stop',
-        bookingUrl: airline.url
-      };
-    }).sort((a, b) => a.price - b.price);
-  };
 
   const handleLocationSelect = (field: 'from' | 'to') => (location: Location) => {
     setSearchData(prev => ({
@@ -93,24 +57,30 @@ const FlightBooking: React.FC = () => {
     setIsSearching(true);
     setHasSearched(false);
 
-    // Simulate API delay
-    setTimeout(() => {
-      const results = generateMockResults(searchData.from!.name.split(',')[0], searchData.to!.name.split(',')[0]);
-      setSearchResults(results);
-      setHasSearched(true);
-      setIsSearching(false);
-    }, 1500);
+    // Simulate network delay for realistic UX
+    await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 700));
+
+    const fromCity = searchData.from.name.split(',')[0];
+    const toCity = searchData.to.name.split(',')[0];
+
+    // Generate dynamic flight prices using meta-search engine
+    const results = generateFlightPrices(fromCity, toCity, searchData.date);
+    setSearchResults(results);
+    setHasSearched(true);
+    setIsSearching(false);
   };
 
-  const handleBookNow = (flight: MockFlightResult) => {
+  const handleBookNow = (flight: FlightResult) => {
     const confirmed = window.confirm(
-      `Book with ${flight.airline}?\n\nPrice: ₹${flight.price.toLocaleString()}\nYou will be redirected to ${flight.airline} to complete your booking.`
+      `Book with ${flight.provider}?\n\nPrice: ${formatPrice(flight.price)}\nYou will be redirected to ${flight.provider} to complete your booking.`
     );
     
     if (confirmed) {
       window.open(flight.bookingUrl, '_blank');
     }
   };
+
+  const lowestPrice = searchResults.length > 0 ? getLowestFlightPrice(searchResults) : 0;
 
   return (
     <motion.div
@@ -251,6 +221,24 @@ const FlightBooking: React.FC = () => {
                 day: 'numeric'
               })} • {searchResults.length} options found
             </p>
+
+            {/* Dynamic Lowest Price Banner */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mt-4 bg-gradient-to-r from-yellow-400/20 to-yellow-600/10 border border-yellow-400/30 rounded-lg p-4 flex items-center justify-between"
+            >
+              <div className="flex items-center">
+                <TrendingDown className="w-5 h-5 text-yellow-400 mr-2" />
+                <span className="text-white">Prices from</span>
+                <span className="text-yellow-400 font-bold text-xl ml-2">
+                  {formatPrice(lowestPrice)}
+                </span>
+              </div>
+              <div className="text-gray-400 text-sm">
+                Live prices • Meta-search across {new Set(searchResults.map(r => r.provider)).size} providers
+              </div>
+            </motion.div>
           </div>
 
           <div className="space-y-4">
@@ -261,23 +249,23 @@ const FlightBooking: React.FC = () => {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
                 className={`bg-zinc-800 rounded-xl p-6 border-2 transition-all hover:border-yellow-400 ${
-                  index === 0 ? 'border-yellow-400 shadow-lg shadow-yellow-400/10' : 'border-zinc-700'
+                  flight.isBestDeal ? 'border-yellow-400 shadow-lg shadow-yellow-400/10' : 'border-zinc-700'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <div className="text-2xl">✈️</div>
+                    <div className="text-2xl">{flight.logo}</div>
                     <div>
-                      <h4 className="text-lg text-white font-semibold">{flight.airline}</h4>
+                      <h4 className="text-lg text-white font-semibold">{flight.provider}</h4>
                       <div className="flex items-center text-sm text-gray-400 mt-1">
                         <Clock className="w-4 h-4 mr-1" />
                         {flight.departure} - {flight.arrival} • {flight.duration}
                       </div>
                       <div className="text-sm text-gray-400">{flight.stops}</div>
-                      {index === 0 && (
+                      {flight.isBestDeal && (
                         <div className="flex items-center text-yellow-400 text-sm mt-1">
                           <Star className="w-4 h-4 mr-1 fill-yellow-400" />
-                          Lowest Fare
+                          Best Deal
                         </div>
                       )}
                     </div>
@@ -285,7 +273,7 @@ const FlightBooking: React.FC = () => {
                   
                   <div className="text-right">
                     <div className="text-2xl text-white font-bold mb-2">
-                      ₹{flight.price.toLocaleString()}
+                      {formatPrice(flight.price)}
                     </div>
                     <button
                       onClick={() => handleBookNow(flight)}
@@ -298,6 +286,12 @@ const FlightBooking: React.FC = () => {
                 </div>
               </motion.div>
             ))}
+          </div>
+
+          {/* Meta-search disclaimer */}
+          <div className="mt-6 text-center text-gray-500 text-sm">
+            <p>TravelSocial is a meta-search platform. We compare prices across multiple providers.</p>
+            <p>Actual prices may vary. Click "Book Now" to see the final price on the provider's website.</p>
           </div>
         </motion.div>
       )}

@@ -1,15 +1,23 @@
 {
-  "name": "backend",
+  "name": "travelsocial-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Backend API for TravelSocial - A social platform for travelers",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "echo \"No linter configured\"",
+    "validate-env": "node -e \"require('./middleware')\""
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["travel", "social", "api", "backend", "express", "mongodb"],
+  "author": "TravelSocial Team",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",

@@ -1,8 +1,9 @@
 import { motion } from 'motion/react';
 import { useState } from 'react';
-import { Mail, Lock, User } from 'lucide-react';
+import { Mail, Lock, User, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { authAPI } from '../utils/api';
 
 interface LoginProps {
   onLogin: (user: any) => void;
@@ -11,26 +12,37 @@ interface LoginProps {
 export default function Login({ onLogin }: LoginProps) {
   const navigate = useNavigate();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock login - in real app, this would validate credentials
-    const user = {
-      name: formData.name || 'Travel Explorer',
-      email: formData.email,
-      avatar: 'https://i.pravatar.cc/150?img=8',
-      joinDate: 'November 2025',
-      bio: 'Adventure seeker and travel enthusiast',
-      savedSpots: 12,
-      posts: 5
-    };
-    onLogin(user);
-    navigate('/');
+    setError('');
+    setLoading(true);
+
+    try {
+      if (isSignUp) {
+        // Sign up
+        const response = await authAPI.signup(formData.name, formData.email, formData.password);
+        onLogin(response.user);
+        navigate('/');
+      } else {
+        // Login
+        const response = await authAPI.login(formData.email, formData.password);
+        onLogin(response.user);
+        navigate('/');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed. Please try again.');
+      console.error('Auth error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -66,6 +78,15 @@ export default function Login({ onLogin }: LoginProps) {
             <p className="text-gray-400">
               {isSignUp ? 'Start your journey with us' : 'Login to continue your adventure'}
             </p>
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 p-3 bg-red-500/10 border border-red-500 rounded-lg text-red-400 text-sm"
+              >
+                {error}
+              </motion.div>
+            )}
           </div>
 
           {/* Form */}
@@ -147,11 +168,19 @@ export default function Login({ onLogin }: LoginProps) {
             {/* Submit Button */}
             <motion.button
               type="submit"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 text-black font-medium rounded-xl transition-all duration-200 shadow-lg"
+              disabled={loading}
+              whileHover={{ scale: loading ? 1 : 1.02 }}
+              whileTap={{ scale: loading ? 1 : 0.98 }}
+              className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-400/50 disabled:cursor-not-allowed text-black font-medium rounded-xl transition-all duration-200 shadow-lg flex items-center justify-center gap-2"
             >
-              {isSignUp ? 'Create Account' : 'Login'}
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {isSignUp ? 'Creating Account...' : 'Logging In...'}
+                </>
+              ) : (
+                isSignUp ? 'Create Account' : 'Login'
+              )}
             </motion.button>
           </motion.form>
 

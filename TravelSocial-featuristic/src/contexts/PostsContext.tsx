@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { postsAPI } from '../utils/api';
 
 interface LocationData {
   name: string;
@@ -14,41 +15,63 @@ interface MediaFile {
 }
 
 interface Comment {
-  id: number;
-  userId: string;
-  username: string;
-  avatar: string;
+  _id: string;
+  author: {
+    _id: string;
+    name: string;
+    avatar: string;
+  };
   text: string;
-  timestamp: string;
+  createdAt: string;
 }
 
 export interface Post {
-  id: number;
-  author: string;
-  avatar: string;
-  time: string;
+  _id: string;
+  author: {
+    _id: string;
+    name: string;
+    avatar: string;
+  };
   content: string;
-  image?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
   location?: string;
   locationData?: LocationData;
-  media?: MediaFile[];
   likes: string[];
-  comments: Comment[];
-  shares: number;
-  isSaved: boolean;
+  likesCount: number;
+  commentsCount: number;
+  comments?: Comment[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface PostsContextType {
   posts: Post[];
-  addPost: (post: Post) => void;
-  updatePost: (postId: number, updates: Partial<Post>) => void;
+  loading: boolean;
+  error: string | null;
+  fetchPosts: () => Promise<void>;
+  createPost: (postData: {
+    content: string;
+    mediaUrl?: string;
+    mediaType?: 'image' | 'video';
+    location?: string;
+    locationData?: LocationData;
+  }) => Promise<void>;
+  toggleLike: (postId: string) => Promise<void>;
+  addComment: (postId: string, text: string) => Promise<void>;
+  getComments: (postId: string) => Promise<Comment[]>;
 }
 
 // Create default context value
 const defaultContextValue: PostsContextType = {
   posts: [],
-  addPost: () => {},
-  updatePost: () => {}
+  loading: false,
+  error: null,
+  fetchPosts: async () => {},
+  createPost: async () => {},
+  toggleLike: async () => {},
+  addComment: async () => {},
+  getComments: async () => []
 };
 
 const PostsContext = createContext<PostsContextType>(defaultContextValue);
@@ -63,105 +86,131 @@ interface PostsProviderProps {
 }
 
 export const PostsProvider: React.FC<PostsProviderProps> = ({ children }) => {
-  const [posts, setPosts] = useState<Post[]>([
-    {
-      id: 1,
-      author: "Emma Wilson",
-      avatar: "https://i.pravatar.cc/150?img=1",
-      time: "2 hours ago",
-      content: "Just discovered this hidden gem in the mountains! The view is absolutely breathtaking and the hiking trail was challenging but so worth it. Can't wait to come back here with friends! 🏔️✨",
-      image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb3VudGFpbnxlbnwwfHx8fDE3NjQyOTczMTZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      location: "Mount Rainier, Washington",
-      locationData: { name: "Mount Rainier", lat: 46.8523, lon: -121.7603 },
-      likes: ['user1', 'user2'],
-      comments: [
-        {
-          id: 1,
-          userId: 'user2',
-          username: 'Alex M.',
-          avatar: 'https://i.pravatar.cc/150?img=5',
-          text: 'Amazing shot! Which trail did you take?',
-          timestamp: '1 hour ago'
-        }
-      ],
-      shares: 12,
-      isSaved: false
-    },
-    {
-      id: 2,
-      author: "James Rodriguez",
-      avatar: "https://i.pravatar.cc/150?img=2",
-      time: "4 hours ago",
-      content: "Beach vibes in paradise! 🌊 The water is crystal clear and the sunset here is like nothing I've ever seen. Perfect spot for some well-deserved relaxation after months of work.",
-      image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiZWFjaHxlbnwwfHx8fDE3NjQyOTczMTZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      location: "Maldives",
-      locationData: { name: "Maldives", lat: 3.2028, lon: 73.2207 },
-      likes: ['user3', 'user4', 'user5'],
-      comments: [],
-      shares: 34,
-      isSaved: true
-    },
-    {
-      id: 3,
-      author: "Sarah Chen",
-      avatar: "https://i.pravatar.cc/150?img=3",
-      time: "1 day ago",
-      content: "Urban exploration at its finest! This city never sleeps and there's always something new to discover around every corner. The architecture here tells so many stories! 🏙️📸",
-      image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaXR5JTIwc2t5bGluZXxlbnwwfHx8fDE3NjQyOTczMTZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
-      location: "New York City",
-      locationData: { name: "New York City", lat: 40.7128, lon: -74.0060 },
-      likes: ['user1', 'user2', 'user3', 'user4', 'user5'],
-      comments: [],
-      shares: 67,
-      isSaved: false
-    },
-    {
-      id: 4,
-      author: "Mike Johnson",
-      avatar: "https://i.pravatar.cc/150?img=3",
-      time: "2 days ago",
-      content: "Tokyo at night hits different. The neon lights, the energy, the endless discoveries around every corner. Already planning my next trip back! 🗼🌃",
-      image: "https://images.unsplash.com/photo-1513563326940-e76e4641069e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaXR5JTIwc2t5bGluZSUyMG5pZ2h0fGVufDF8fHx8MTc2NDI5NzMxNnww&ixlib=rb-4.1.0&q=80&w=1080",
-      location: "Tokyo, Japan",
-      locationData: { name: "Tokyo", lat: 35.6762, lon: 139.6503 },
-      likes: ['user_001', 'user2', 'user4'],
-      comments: [
-        {
-          id: 1,
-          userId: 'user3',
-          username: 'Anna K.',
-          avatar: 'https://i.pravatar.cc/150?img=8',
-          text: 'Tokyo is absolutely amazing! Love the night photography.',
-          timestamp: '1 day ago'
-        },
-        {
-          id: 2,
-          userId: 'user5',
-          username: 'David L.',
-          avatar: 'https://i.pravatar.cc/150?img=2',
-          text: 'Which district is this? Planning my visit soon!',
-          timestamp: '1 day ago'
-        }
-      ],
-      shares: 92,
-      isSaved: false
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch posts from API
+  const fetchPosts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await postsAPI.getAllPosts();
+      if (response.success) {
+        setPosts(response.data.posts);
+      }
+    } catch (err: any) {
+      console.error('Error fetching posts:', err);
+      setError(err.message || 'Failed to fetch posts');
+    } finally {
+      setLoading(false);
     }
-  ]);
-
-  const addPost = (post: Post) => {
-    setPosts(prevPosts => [post, ...prevPosts]);
   };
 
-  const updatePost = (postId: number, updates: Partial<Post>) => {
-    setPosts(prevPosts => 
-      prevPosts.map(post => 
-        post.id === postId ? { ...post, ...updates } : post
-      )
-    );
+  // Create new post
+  const createPost = async (postData: {
+    content: string;
+    mediaUrl?: string;
+    mediaType?: 'image' | 'video';
+    location?: string;
+    locationData?: LocationData;
+  }) => {
+    try {
+      const response = await postsAPI.createPost(postData);
+      if (response.success) {
+        // Fetch fresh posts to get accurate counts
+        await fetchPosts();
+      }
+    } catch (err: any) {
+      console.error('Error creating post:', err);
+      throw err;
+    }
   };
+
+  // Toggle like on a post
+  const toggleLike = async (postId: string) => {
+    try {
+      const response = await postsAPI.toggleLike(postId);
+      
+      // Optimistically update UI
+      setPosts(prevPosts =>
+        prevPosts.map(post => {
+          if (post._id === postId) {
+            const currentUserId = localStorage.getItem('user') 
+              ? JSON.parse(localStorage.getItem('user')!)._id 
+              : null;
+            
+            if (!currentUserId) return post;
+
+            const isLiked = post.likes.includes(currentUserId);
+            return {
+              ...post,
+              likes: isLiked
+                ? post.likes.filter(id => id !== currentUserId)
+                : [...post.likes, currentUserId],
+              likesCount: isLiked ? post.likesCount - 1 : post.likesCount + 1
+            };
+          }
+          return post;
+        })
+      );
+    } catch (err: any) {
+      console.error('Error toggling like:', err);
+      throw err;
+    }
+  };
+
+  // Add comment to post
+  const addComment = async (postId: string, text: string) => {
+    try {
+      const response = await postsAPI.addComment(postId, text);
+      
+      // Update comments count optimistically
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post._id === postId
+            ? { ...post, commentsCount: post.commentsCount + 1 }
+            : post
+        )
+      );
+    } catch (err: any) {
+      console.error('Error adding comment:', err);
+      throw err;
+    }
+  };
+
+  // Get comments for a post
+  const getComments = async (postId: string): Promise<Comment[]> => {
+    try {
+      const response = await postsAPI.getComments(postId);
+      if (response.success) {
+        return response.data.comments;
+      }
+      return [];
+    } catch (err: any) {
+      console.error('Error getting comments:', err);
+      return [];
+    }
+  };
+
+  // Fetch posts on mount
+  useEffect(() => {
+    fetchPosts();
+  }, []);
 
   return (
-    <PostsContext.Provider value={{ posts, addPost, updatePost }}>
+    <PostsContext.Provider
+      value={{
+        posts,
+        loading,
+        error,
+        fetchPosts,
+        createPost,
+        toggleLike,
+        addComment,
+        getComments
+      }}
+    >
       {children}
     </PostsContext.Provider>
   );

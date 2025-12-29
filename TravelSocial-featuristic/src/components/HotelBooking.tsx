@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Building2, Calendar, Users, Search, Star, Loader2 } from 'lucide-react';
 import LocationAutocomplete, { Location } from './LocationAutocomplete';
+import { generateHotelPrices } from '../utils/metaSearchPricing';
 
 interface HotelSearchData {
   city: Location | null;
@@ -47,37 +48,30 @@ const HotelBooking: React.FC = () => {
 
     setIsSearching(true);
 
-    try {
-      const params = new URLSearchParams({
-        city: searchData.city.name.split(',')[0],
-        checkIn: searchData.checkIn,
-        checkOut: searchData.checkOut
-      });
+    // Simulate network delay for realistic UX
+    await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
 
-      const response = await fetch(`http://localhost:5000/api/hotels/search?${params}`);
-      const data = await response.json();
+    const cityName = searchData.city.name.split(',')[0];
+    const checkInDate = new Date(searchData.checkIn);
+    const checkOutDate = new Date(searchData.checkOut);
+    const nights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
 
-      if (data.success) {
-        navigate('/hotels/results', {
-          state: {
-            results: data.data.hotels,
-            searchParams: {
-              city: searchData.city.name.split(',')[0],
-              checkIn: searchData.checkIn,
-              checkOut: searchData.checkOut,
-              nights: Math.max(1, Math.ceil((new Date(searchData.checkOut).getTime() - new Date(searchData.checkIn).getTime()) / (1000 * 60 * 60 * 24)))
-            }
-          }
-        });
-      } else {
-        alert('Error searching hotels: ' + data.message);
+    // Generate dynamic hotel prices using meta-search engine
+    const hotelResults = generateHotelPrices(cityName, searchData.checkIn, searchData.checkOut);
+
+    navigate('/hotels/results', {
+      state: {
+        results: hotelResults,
+        searchParams: {
+          city: cityName,
+          checkIn: searchData.checkIn,
+          checkOut: searchData.checkOut,
+          nights: nights
+        }
       }
-    } catch (error) {
-      console.error('Hotel search error:', error);
-      alert('Error connecting to search service');
-    } finally {
-      setIsSearching(false);
-    }
+    });
+
+    setIsSearching(false);
   };
 
   // Calculate minimum check-out date (day after check-in)

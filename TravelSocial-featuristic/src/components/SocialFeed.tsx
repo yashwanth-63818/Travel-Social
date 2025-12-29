@@ -1,12 +1,9 @@
 import { motion } from 'motion/react';
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, Send, Image as ImageIcon, MapPin } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Send, Image as ImageIcon, MapPin, Loader2 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { usePostsContext, Post } from '../contexts/PostsContext';
-
-// Mock user constants
-const mockUserId = "user_001";
-const mockUserName = "Nova";
+import { getCurrentUser, getCurrentUserId } from '../utils/api';
 
 interface MediaFile {
   id: string;
@@ -42,11 +39,13 @@ export default function SocialFeed({
   currentUser, 
   onLocationSelect
 }: SocialFeedProps) {
-  const { posts, addPost, updatePost } = usePostsContext();
+  const { posts, loading, createPost, toggleLike, addComment: addCommentAPI, getComments } = usePostsContext();
   const [newPost, setNewPost] = useState('');
+  const [isPosting, setIsPosting] = useState(false);
 
-  const [commentText, setCommentText] = useState<{[key: number]: string}>({});
-  const [showComments, setShowComments] = useState<{[key: number]: boolean}>({});
+  const [commentText, setCommentText] = useState<{[key: string]: string}>({});
+  const [showComments, setShowComments] = useState<{[key: string]: boolean}>({});
+  const [loadedComments, setLoadedComments] = useState<{[key: string]: any[]}>({});
   const [selectedMedia, setSelectedMedia] = useState<MediaFile[]>([]);
   const [newLocation, setNewLocation] = useState('');
   const [selectedLocationData, setSelectedLocationData] = useState<LocationData | null>(null);
@@ -57,6 +56,9 @@ export default function SocialFeed({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const locationInputRef = useRef<HTMLInputElement>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const currentUserId = getCurrentUserId();
+  const loggedInUser = getCurrentUser();
 
   // Cleanup object URLs to prevent memory leaks
   useEffect(() => {
@@ -69,46 +71,50 @@ export default function SocialFeed({
     };
   }, [selectedMedia]);
 
-  const handleLike = (postId: number) => {
-    const post = posts.find(p => p.id === postId);
-    if (post) {
-      const isCurrentlyLiked = post.likes.includes(mockUserId);
-      const newLikes = isCurrentlyLiked 
-        ? post.likes.filter(userId => userId !== mockUserId)
-        : [...post.likes, mockUserId];
-      updatePost(postId, { likes: newLikes });
+  const handleLike = async (postId: string) => {
+    if (!currentUserId) {
+      alert('Please log in to like posts');
+      return;
+    }
+    
+    try {
+      await toggleLike(postId);
+    } catch (error) {
+      console.error('Error liking post:', error);
+      alert('Failed to like post. Please try again.');
     }
   };
 
-  const handleSave = (postId: number) => {
-    const post = posts.find(p => p.id === postId);
-    if (post) {
-      updatePost(postId, { isSaved: !post.isSaved });
-    }
-  };
-
-  const handleAddComment = (postId: number) => {
+  const handleAddComment = async (postId: string) => {
     const comment = commentText[postId]?.trim();
-    if (!comment) return;
+    if (!comment || !currentUserId) return;
 
-    const newComment = {
-      id: Date.now(),
-      userId: mockUserId,
-      username: currentUser?.name || mockUserName,
-      avatar: currentUser?.avatar || "https://i.pravatar.cc/150?img=8",
-      text: comment,
-      timestamp: "Just now"
-    };
-
-    const post = posts.find(p => p.id === postId);
-    if (post) {
-      updatePost(postId, { comments: [...post.comments, newComment] });
+    try {
+      await addCommentAPI(postId, comment);
+      setCommentText(prev => ({ ...prev, [postId]: '' }));
+      
+      // Reload comments for this post
+      const updatedComments = await getComments(postId);
+      setLoadedComments(prev => ({ ...prev, [postId]: updatedComments }));
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      alert('Failed to add comment. Please try again.');
     }
-
-    setCommentText(prev => ({ ...prev, [postId]: '' }));
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent, postId: number) => {
+  const toggleCommentsView = async (postId: string) => {
+    const isShowing = showComments[postId];
+    
+    if (!isShowing && !loadedComments[postId]) {
+      // Load comments if not already loaded
+      const comments = await getComments(postId);
+      setLoadedComments(prev => ({ ...prev, [postId]: comments }));
+    }
+    
+    setShowComments(prev => ({ ...prev, [postId]: !isShowing }));
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent, postId: string) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleAddComment(postId);
@@ -258,9 +264,9 @@ export default function SocialFeed({
 
   const handleShare = async (post: Post) => {
     const shareData = {
-      title: `${post.author}'s Travel Story`,
+      title: `${post.author.name}'s Travel Story`,
       text: post.content,
-      url: `${window.location.origin}/post/${post.id}`
+      url: `${window.location.origin}/post/${post._id}`
     };
 
     try {
@@ -294,24 +300,33 @@ export default function SocialFeed({
     }
   };
 
-  const handleCreatePost = () => {
-    if (newPost.trim() || selectedMedia.length > 0) {
-      const post = {
-        id: posts && posts.length > 0 ? Math.max(...posts.map(p => p.id)) + 1 : 1,
-        author: currentUser?.name || mockUserName,
-        avatar: currentUser?.avatar || "https://i.pravatar.cc/150?img=8",
-        time: "Just now",
+  const handleCreatePost = async () => {
+    if (!newPost.trim() && selectedMedia.length === 0) {
+      return;
+    }
+
+    if (!currentUserId) {
+      alert('Please log in to create posts');
+      return;
+    }
+
+    try {
+      setIsPosting(true);
+      
+      // For now, we'll use the first media URL if available
+      // In a production app, you'd upload the file and get a URL
+      const mediaUrl = selectedMedia[0]?.url;
+      const mediaType = selectedMedia[0]?.type;
+
+      await createPost({
         content: newPost,
-        image: "",
+        mediaUrl,
+        mediaType,
         location: newLocation.trim() || undefined,
-        locationData: selectedLocationData || undefined,
-        media: selectedMedia.length > 0 ? [...selectedMedia] : undefined,
-        likes: [],
-        comments: [],
-        shares: 0,
-        isSaved: false
-      };
-      addPost(post);
+        locationData: selectedLocationData || undefined
+      });
+
+      // Clear form
       setNewPost('');
       setSelectedMedia([]);
       setNewLocation('');
@@ -319,6 +334,11 @@ export default function SocialFeed({
       setLocationSuggestions([]);
       setShowLocationSuggestions(false);
       setShowLocationInput(false);
+    } catch (error) {
+      console.error('Error creating post:', error);
+      alert('Failed to create post. Please try again.');
+    } finally {
+      setIsPosting(false);
     }
   };
 
@@ -468,22 +488,40 @@ export default function SocialFeed({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleCreatePost}
-              className="bg-yellow-400 text-black px-6 py-2 rounded-lg flex items-center gap-2"
+              disabled={isPosting || (!newPost.trim() && selectedMedia.length === 0)}
+              className="bg-yellow-400 text-black px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Send className="w-4 h-4" />
-              Post
+              {isPosting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Posting...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Post
+                </>
+              )}
             </motion.button>
           </div>
         </motion.div>
 
         {/* Posts Feed */}
+        {loading && posts.length === 0 ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-8 h-8 text-yellow-400 animate-spin" />
+          </div>
+        ) : (
         <div className="space-y-6">
           {posts && posts.length > 0 ? posts.map((post, index) => {
-            if (!post || !post.id) return null;
+            if (!post || !post._id) return null;
+            
+            const isLikedByUser = currentUserId ? post.likes.includes(currentUserId) : false;
+            const postComments = loadedComments[post._id] || [];
             
             return (
             <motion.div
-              key={post.id}
+              key={post._id}
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
@@ -493,14 +531,14 @@ export default function SocialFeed({
               <div className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <ImageWithFallback
-                    src={post.avatar}
-                    alt={post.author}
+                    src={post.author.avatar}
+                    alt={post.author.name}
                     className="w-12 h-12 rounded-full border-2 border-yellow-400"
                   />
                   <div>
-                    <p className="text-white">{post.author}</p>
+                    <p className="text-white font-semibold">{post.author.name}</p>
                     <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <span>{post.time}</span>
+                      <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                       {post.location && (
                         <>
                           <span>•</span>
@@ -513,16 +551,6 @@ export default function SocialFeed({
                     </div>
                   </div>
                 </div>
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => handleSave(post.id)}
-                  className="text-gray-400 hover:text-yellow-400 transition-colors"
-                >
-                  <Bookmark 
-                    className={`w-6 h-6 ${post.isSaved ? 'fill-yellow-400 text-yellow-400' : ''}`} 
-                  />
-                </motion.button>
               </div>
 
               {/* Post Content */}
@@ -530,47 +558,22 @@ export default function SocialFeed({
                 <p className="text-white mb-4">{post.content}</p>
               </div>
 
-              {/* Post Image (legacy) */}
-              {post.image && (
+              {/* Post Media */}
+              {post.mediaUrl && (
                 <div className="relative">
-                  <ImageWithFallback
-                    src={post.image}
-                    alt="Post"
-                    className="w-full h-96 object-cover"
-                  />
-                </div>
-              )}
-
-              {/* Post Media (new upload system) */}
-              {post.media && post.media.length > 0 && (
-                <div className="px-4 pb-4">
-                  <div className={`grid gap-2 ${
-                    post.media.length === 1 ? 'grid-cols-1' : 
-                    post.media.length === 2 ? 'grid-cols-2' : 
-                    'grid-cols-2 md:grid-cols-3'
-                  }`}>
-                    {post.media.map((media) => (
-                      <div key={media.id} className="relative">
-                        {media.type === 'image' ? (
-                          <img
-                            src={media.url}
-                            alt="Post media"
-                            className={`w-full object-cover rounded-lg ${
-                              post.media!.length === 1 ? 'h-64' : 'h-32'
-                            }`}
-                          />
-                        ) : (
-                          <video
-                            src={media.url}
-                            controls
-                            className={`w-full object-cover rounded-lg ${
-                              post.media!.length === 1 ? 'h-64' : 'h-32'
-                            }`}
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  {post.mediaType === 'video' ? (
+                    <video
+                      src={post.mediaUrl}
+                      controls
+                      className="w-full h-96 object-cover"
+                    />
+                  ) : (
+                    <ImageWithFallback
+                      src={post.mediaUrl}
+                      alt="Post"
+                      className="w-full h-96 object-cover"
+                    />
+                  )}
                 </div>
               )}
 
@@ -581,22 +584,22 @@ export default function SocialFeed({
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => handleLike(post.id)}
+                      onClick={() => handleLike(post._id)}
                       className={`flex items-center gap-2 transition-colors ${
-                        post.likes.includes(mockUserId) ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'
+                        isLikedByUser ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'
                       }`}
                     >
-                      <Heart className={`w-6 h-6 ${post.likes.includes(mockUserId) ? 'fill-yellow-400' : ''}`} />
-                      <span>{post.likes.length}</span>
+                      <Heart className={`w-6 h-6 ${isLikedByUser ? 'fill-yellow-400' : ''}`} />
+                      <span>{post.likesCount}</span>
                     </motion.button>
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => setShowComments({...showComments, [post.id]: !showComments[post.id]})}
+                      onClick={() => toggleCommentsView(post._id)}
                       className="flex items-center gap-2 text-gray-400 hover:text-yellow-400 transition-colors"
                     >
                       <MessageCircle className="w-6 h-6" />
-                      <span>{post.comments.length}</span>
+                      <span>{post.commentsCount}</span>
                     </motion.button>
                     <motion.button
                       whileHover={{ scale: 1.1 }}
@@ -605,13 +608,12 @@ export default function SocialFeed({
                       className="flex items-center gap-2 text-gray-400 hover:text-yellow-400 transition-colors"
                     >
                       <Share2 className="w-6 h-6" />
-                      <span>{post.shares}</span>
                     </motion.button>
                   </div>
                 </div>
 
                 {/* Comments Section */}
-                {showComments[post.id] && (
+                {showComments[post._id] && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -620,33 +622,35 @@ export default function SocialFeed({
                     <div className="flex gap-2 mb-4">
                       <input
                         type="text"
-                        value={commentText[post.id] || ''}
-                        onChange={(e) => setCommentText({...commentText, [post.id]: e.target.value})}
-                        onKeyPress={(e) => handleKeyPress(e, post.id)}
+                        value={commentText[post._id] || ''}
+                        onChange={(e) => setCommentText({...commentText, [post._id]: e.target.value})}
+                        onKeyPress={(e) => handleKeyPress(e, post._id)}
                         placeholder="Add a comment..."
                         className="flex-1 bg-zinc-800 text-white rounded-lg px-4 py-2 border-2 border-transparent focus:border-yellow-400 outline-none"
                       />
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => handleAddComment(post.id)}
+                        onClick={() => handleAddComment(post._id)}
                         className="bg-yellow-400 text-black px-4 py-2 rounded-lg"
                       >
                         <Send className="w-4 h-4" />
                       </motion.button>
                     </div>
                     <div className="space-y-3">
-                      {post.comments.map((comment) => (
-                        <div key={comment.id} className="flex gap-3">
+                      {postComments.map((comment: any) => (
+                        <div key={comment._id} className="flex gap-3">
                           <ImageWithFallback
-                            src={comment.avatar}
-                            alt={comment.username}
+                            src={comment.author.avatar}
+                            alt={comment.author.name}
                             className="w-8 h-8 rounded-full border border-yellow-400"
                           />
                           <div className="flex-1 bg-zinc-800 rounded-lg p-3">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="text-sm font-medium">{comment.username}</p>
-                              <span className="text-xs text-gray-500">{comment.timestamp}</span>
+                              <p className="text-sm font-medium">{comment.author.name}</p>
+                              <span className="text-xs text-gray-500">
+                                {new Date(comment.createdAt).toLocaleDateString()}
+                              </span>
                             </div>
                             <p className="text-sm text-gray-300">{comment.text}</p>
                           </div>
@@ -664,6 +668,7 @@ export default function SocialFeed({
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

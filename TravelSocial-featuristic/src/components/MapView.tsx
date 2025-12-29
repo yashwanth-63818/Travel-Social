@@ -122,29 +122,30 @@ function MapView({ selectedLocation, onLocationSelect }: MapViewProps) {
           : (post.content || 'No content');
 
         let mediaPreview = '';
-        if (post.image) {
-          mediaPreview = `<img src="${post.image}" alt="Post" style="width: 200px; height: 120px; object-fit: cover; border-radius: 8px; margin-top: 8px;" />`;
-        } else if (post.media && Array.isArray(post.media) && post.media.length > 0) {
-          const firstMedia = post.media[0];
-          if (firstMedia && firstMedia.type === 'image' && firstMedia.url) {
-            mediaPreview = `<img src="${firstMedia.url}" alt="Post" style="width: 200px; height: 120px; object-fit: cover; border-radius: 8px; margin-top: 8px;" />`;
-          } else if (firstMedia && firstMedia.type === 'video' && firstMedia.url) {
-            mediaPreview = `<video src="${firstMedia.url}" style="width: 200px; height: 120px; object-fit: cover; border-radius: 8px; margin-top: 8px;" muted></video>`;
+        if (post.mediaUrl && Array.isArray(post.mediaUrl) && post.mediaUrl.length > 0) {
+          const firstMedia = post.mediaUrl[0];
+          if (firstMedia) {
+            // Assume it's an image by default
+            mediaPreview = `<img src="${firstMedia}" alt="Post" style="width: 200px; height: 120px; object-fit: cover; border-radius: 8px; margin-top: 8px;" />`;
           }
         }
+
+        const authorName = typeof post.author === 'object' ? post.author.name : 'Anonymous';
+        const authorAvatar = typeof post.author === 'object' ? post.author.avatar : 'https://i.pravatar.cc/150?img=1';
+        const postDate = post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Unknown time';
 
         const popupContent = `
           <div style="font-family: system-ui; max-width: 220px; color: #333; background: white; padding: 12px; border-radius: 8px;">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-              <img src="${post.avatar || 'https://i.pravatar.cc/150?img=1'}" alt="${post.author || 'User'}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fbbf24;" />
+              <img src="${authorAvatar}" alt="${authorName}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fbbf24;" />
               <div>
-                <div style="font-weight: bold; color: #1a1a1a; font-size: 14px;">${post.author || 'Anonymous'}</div>
+                <div style="font-weight: bold; color: #1a1a1a; font-size: 14px;">${authorName}</div>
                 <div style="color: #666; font-size: 12px;">${post.locationData.name || 'Unknown location'}</div>
               </div>
             </div>
             <div style="color: #333; font-size: 13px; line-height: 1.4; margin-bottom: 8px;">${truncatedContent}</div>
             ${mediaPreview}
-            <div style="color: #888; font-size: 11px; margin-top: 8px;">${post.time || 'Unknown time'}</div>
+            <div style="color: #888; font-size: 11px; margin-top: 8px;">${postDate}</div>
           </div>
         `;
 
@@ -159,7 +160,7 @@ function MapView({ selectedLocation, onLocationSelect }: MapViewProps) {
             postsMarkersRef.current.addLayer(marker);
           }
         } catch (error) {
-          console.warn('Failed to create marker for post:', post.id, error);
+          console.warn('Failed to create marker for post:', post._id, error);
         }
       });
   };
