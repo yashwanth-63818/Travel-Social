@@ -97,11 +97,15 @@ export const PostsProvider: React.FC<PostsProviderProps> = ({ children }) => {
       setError(null);
       const response = await postsAPI.getAllPosts();
       if (response.success) {
-        setPosts(response.data.posts);
+        setPosts(response.data.posts || []);
+      } else {
+        throw new Error(response.message || 'Failed to fetch posts');
       }
     } catch (err: any) {
       console.error('Error fetching posts:', err);
       setError(err.message || 'Failed to fetch posts');
+      // Set empty array as fallback instead of keeping previous posts
+      setPosts([]);
     } finally {
       setLoading(false);
     }

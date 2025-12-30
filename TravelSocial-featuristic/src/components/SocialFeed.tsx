@@ -39,7 +39,7 @@ export default function SocialFeed({
   currentUser, 
   onLocationSelect
 }: SocialFeedProps) {
-  const { posts, loading, createPost, toggleLike, addComment: addCommentAPI, getComments } = usePostsContext();
+  const { posts, loading, error, createPost, toggleLike, addComment: addCommentAPI, getComments } = usePostsContext();
   const [newPost, setNewPost] = useState('');
   const [isPosting, setIsPosting] = useState(false);
 
@@ -508,12 +508,42 @@ export default function SocialFeed({
 
         {/* Posts Feed */}
         {loading && posts.length === 0 ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 text-yellow-400 animate-spin" />
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-yellow-400 animate-spin mb-4" />
+            <p className="text-gray-400">Loading travel stories...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="bg-red-900/20 border border-red-500 rounded-lg p-6 max-w-md text-center">
+              <div className="text-red-400 mb-2">⚠️ Connection Error</div>
+              <p className="text-gray-300 mb-4">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-yellow-400 text-black px-4 py-2 rounded-lg hover:bg-yellow-500 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="text-center max-w-md">
+              <div className="text-6xl mb-4">🌍</div>
+              <h3 className="text-xl font-semibold text-white mb-2">No stories yet!</h3>
+              <p className="text-gray-400 mb-6">
+                Be the first to share your travel adventure with the community.
+              </p>
+              <button
+                onClick={() => document.querySelector('textarea')?.focus()}
+                className="bg-yellow-400 text-black px-6 py-3 rounded-lg hover:bg-yellow-500 transition-colors"
+              >
+                Share Your Story
+              </button>
+            </div>
           </div>
         ) : (
         <div className="space-y-6">
-          {posts && posts.length > 0 ? posts.map((post, index) => {
+          {posts.map((post, index) => {
             if (!post || !post._id) return null;
             
             const isLikedByUser = currentUserId ? post.likes.includes(currentUserId) : false;
@@ -662,11 +692,7 @@ export default function SocialFeed({
               </div>
             </motion.div>
             );
-          }) : (
-            <div className="text-center text-gray-400 py-8">
-              <p>No posts yet. Share your first travel story!</p>
-            </div>
-          )}
+          })}
         </div>
         )}
       </div>

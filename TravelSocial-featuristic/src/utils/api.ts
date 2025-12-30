@@ -1,5 +1,5 @@
-// API base URL
-const API_BASE_URL = 'http://localhost:5000/api';
+// API base URL - Use relative path since Vite proxy handles backend forwarding
+const API_BASE_URL = '/api';
 
 // Helper to get auth token
 const getAuthToken = (): string | null => {
@@ -35,7 +35,7 @@ export const getCurrentUser = (): any | null => {
   return null;
 };
 
-// API request helper
+// API request helper with better error handling
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   const token = getAuthToken();
   
@@ -47,21 +47,39 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      ...headers,
-      ...(options.headers as Record<string, string> || {})
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        ...headers,
+        ...(options.headers as Record<string, string> || {})
+      }
+    });
+
+    // Check if response is ok
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // If JSON parsing fails, use the HTTP status message
+      }
+      
+      throw new Error(errorMessage);
     }
-  });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'API request failed');
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Unable to connect to server. Please check if the backend is running on http://localhost:5000');
+    }
+    
+    throw error;
   }
-
-  return data;
 };
 
 // Posts API

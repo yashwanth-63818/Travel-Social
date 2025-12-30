@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import HomePage from './components/HomePage';
 import MapView from './components/MapView';
@@ -26,14 +26,39 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
 
+  // Check for stored authentication data on app startup
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setIsAuthenticated(true);
+        setCurrentUser(user);
+        console.log('Restored authentication state for:', user.email);
+      } catch (error) {
+        console.error('Error parsing stored user data:', error);
+        // Clear invalid data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+    }
+  }, []);
+
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
     setCurrentUser(user);
+    console.log('User logged in:', user);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
+    // Clear stored data
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    console.log('User logged out');
   };
 
   const handleLocationSelect = (location: LocationData) => {

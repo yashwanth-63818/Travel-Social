@@ -24,12 +24,16 @@ if (require.main === module) {
 }
 
 // Generate JWT token
-const generateToken = (userId) => {
+const generateToken = (userData) => {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     throw new Error('JWT_SECRET environment variable is required');
   }
-  return jwt.sign({ userId }, secret, {
+  
+  // Handle both object and simple userId formats
+  const payload = typeof userData === 'object' ? userData : { userId: userData };
+  
+  return jwt.sign(payload, secret, {
     expiresIn: '7d'
   });
 };
@@ -46,16 +50,18 @@ const authenticateToken = (req, res, next) => {
     });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({
-        success: false,
-        message: 'Invalid or expired token'
-      });
-    }
-    req.userId = user.userId;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Handle both old and new token formats
+    req.userId = decoded.id || decoded.userId;
+    req.user = decoded;
     next();
-  });
+  } catch (err) {
+    return res.status(403).json({
+      success: false,
+      message: 'Invalid or expired token'
+    });
+  }
 };
 
 // Validation middleware for signup

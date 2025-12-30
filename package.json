@@ -1,4 +1,18 @@
 {
+  "name": "travelsocial-fullstack",
+  "version": "1.0.0",
+  "description": "TravelSocial - Full-stack application with React frontend and Express backend",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd TravelSocial-featuristic && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "install:all": "npm install && cd backend && npm install && cd ../TravelSocial-featuristic && npm install",
+    "build": "cd TravelSocial-featuristic && npm run build",
+    "test-db": "cd backend && node -e \"require('./db')().then(() => console.log('✅ Database connected successfully!')).catch(err => console.error('❌ Database connection failed:', err.message))\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
   "dependencies": {
     "@types/leaflet": "^1.9.21",
     "leaflet": "^1.9.4",
