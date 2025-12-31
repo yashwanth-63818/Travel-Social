@@ -1,0 +1,80 @@
+{
+  "Tamil Nadu": [
+    { "district": "Chennai", "place": "Marina Beach" },
+    { "district": "Chennai", "place": "Elliot's Beach" },
+    { "district": "Chennai", "place": "ECR Beach Road" },
+    { "district": "Kodaikanal", "place": "Coaker's Walk" },
+    { "district": "Kodaikanal", "place": "Bryant Park" },
+    { "district": "Kodaikanal", "place": "Pillar Rocks" },
+    { "district": "Ooty", "place": "Botanical Garden" },
+    { "district": "Ooty", "place": "Doddabetta Peak" },
+    { "district": "Ooty", "place": "Pykara Falls" },
+    { "district": "Coimbatore", "place": "Marudamalai Temple" },
+    { "district": "Coimbatore", "place": "Siruvani Waterfalls" },
+    { "district": "Madurai", "place": "Meenakshi Temple" },
+    { "district": "Madurai", "place": "Thirumalai Nayakkar Palace" },
+    { "district": "Kanyakumari", "place": "Sunset Point" },
+    { "district": "Kanyakumari", "place": "Vivekananda Rock Memorial" },
+    { "district": "Rameswaram", "place": "Ramanathaswamy Temple" },
+    { "district": "Rameswaram", "place": "Pamban Bridge" }
+  ],
+  "Kerala": [
+    { "district": "Munnar", "place": "Tea Gardens" },
+    { "district": "Munnar", "place": "Echo Point" },
+    { "district": "Munnar", "place": "Mattupetty Dam" },
+    { "district": "Wayanad", "place": "Edakkal Caves" },
+    { "district": "Wayanad", "place": "Soochipara Falls" },
+    { "district": "Alleppey", "place": "Backwaters" },
+    { "district": "Alleppey", "place": "Marari Beach" },
+    { "district": "Thekkady", "place": "Periyar Wildlife Sanctuary" },
+    { "district": "Thekkady", "place": "Spice Plantations" },
+    { "district": "Kovalam", "place": "Lighthouse Beach" },
+    { "district": "Kovalam", "place": "Hawah Beach" },
+    { "district": "Kumarakom", "place": "Bird Sanctuary" },
+    { "district": "Kumarakom", "place": "Vembanad Lake" },
+    { "district": "Kochi", "place": "Fort Kochi" },
+    { "district": "Kochi", "place": "Chinese Fishing Nets" }
+  ],
+  "Karnataka": [
+    { "district": "Coorg", "place": "Abbey Falls" },
+    { "district": "Coorg", "place": "Raja's Seat" },
+    { "district": "Coorg", "place": "Dubare Elephant Camp" },
+    { "district": "Chikmagalur", "place": "Mullayanagiri Peak" },
+    { "district": "Chikmagalur", "place": "Baba Budangiri" },
+    { "district": "Hampi", "place": "Virupaksha Temple" },
+    { "district": "Hampi", "place": "Lotus Mahal" },
+    { "district": "Mysore", "place": "Mysore Palace" },
+    { "district": "Mysore", "place": "Brindavan Gardens" },
+    { "district": "Bandipur", "place": "National Park" },
+    { "district": "Bandipur", "place": "Safari Trails" }
+  ],
+  "Andhra Pradesh": [
+    { "district": "Tirupati", "place": "Tirumala Temple" },
+    { "district": "Tirupati", "place": "Sri Venkateswara National Park" },
+    { "district": "Araku Valley", "place": "Borra Caves" },
+    { "district": "Araku Valley", "place": "Coffee Plantations" },
+    { "district": "Vizag", "place": "Bheemili Beach" },
+    { "district": "Vizag", "place": "Kailasagiri" },
+    { "district": "Horsley Hills", "place": "View Points" },
+    { "district": "Horsley Hills", "place": "Adventure Sports" }
+  ],
+  "Goa": [
+    { "district": "North Goa", "place": "Baga Beach" },
+    { "district": "North Goa", "place": "Calangute Beach" },
+    { "district": "North Goa", "place": "Anjuna Beach" },
+    { "district": "South Goa", "place": "Palolem Beach" },
+    { "district": "South Goa", "place": "Colva Beach" },
+    { "district": "Panaji", "place": "Old Goa Churches" },
+    { "district": "Panaji", "place": "Fontainhas" }
+  ],
+  "Maharashtra": [
+    { "district": "Lonavala", "place": "Tiger's Leap" },
+    { "district": "Lonavala", "place": "Bhushi Dam" },
+    { "district": "Mahabaleshwar", "place": "Arthur's Seat" },
+    { "district": "Mahabaleshwar", "place": "Elephant's Head Point" },
+    { "district": "Aurangabad", "place": "Ajanta Caves" },
+    { "district": "Aurangabad", "place": "Ellora Caves" },
+    { "district": "Pune", "place": "Sinhagad Fort" },
+    { "district": "Pune", "place": "Shaniwar Wada" }
+  ]
+}

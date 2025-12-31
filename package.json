@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "TravelSocial - Full-stack application with React frontend and Express backend",
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "concurrently --names \"BACKEND,FRONTEND\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "cd TravelSocial-featuristic && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "install:all": "npm install && cd backend && npm install && cd ../TravelSocial-featuristic && npm install",

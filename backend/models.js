@@ -23,6 +23,14 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters']
   },
+  role: {
+    type: String,
+    enum: {
+      values: ['user', 'admin'],
+      message: 'Role must be either user or admin'
+    },
+    default: 'user'
+  },
   avatar: {
     type: String,
     default: 'https://i.pravatar.cc/150?img=8'
@@ -234,4 +242,227 @@ const hiddenPlaceSchema = new mongoose.Schema({
 
 const HiddenPlace = mongoose.model('HiddenPlace', hiddenPlaceSchema);
 
-module.exports = { User, Post, Comment, Like, Follow, HiddenPlace };
+// BikeRide Schema
+const bikeRideSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Title is required'],
+    trim: true,
+    maxlength: [200, 'Title cannot exceed 200 characters']
+  },
+  location: {
+    type: String,
+    required: [true, 'Location is required'],
+    trim: true,
+    maxlength: [100, 'Location cannot exceed 100 characters']
+  },
+  locationName: {
+    type: String,
+    trim: true,
+    maxlength: [200, 'Location name cannot exceed 200 characters']
+  },
+  latitude: {
+    type: Number,
+    min: [-90, 'Latitude must be between -90 and 90'],
+    max: [90, 'Latitude must be between -90 and 90']
+  },
+  longitude: {
+    type: Number,
+    min: [-180, 'Longitude must be between -180 and 180'],
+    max: [180, 'Longitude must be between -180 and 180']
+  },
+  description: {
+    type: String,
+    required: [true, 'Description is required'],
+    trim: true,
+    maxlength: [1000, 'Description cannot exceed 1000 characters']
+  },
+  date: {
+    type: Date,
+    required: [true, 'Date is required']
+  },
+  time: {
+    type: String,
+    required: [true, 'Time is required']
+  },
+  distance: {
+    type: String,
+    required: [true, 'Distance is required']
+  },
+  difficulty: {
+    type: String,
+    required: [true, 'Difficulty is required'],
+    enum: ['Beginner', 'Intermediate', 'Advanced']
+  },
+  maxParticipants: {
+    type: Number,
+    required: [true, 'Max participants is required'],
+    min: [1, 'Must have at least 1 participant']
+  },
+  participants: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  status: {
+    type: String,
+    enum: {
+      values: ['upcoming', 'completed', 'cancelled'],
+      message: 'Status must be either upcoming, completed, or cancelled'
+    },
+    default: 'upcoming'
+  },
+  organizer: {
+    type: String,
+    required: [true, 'Organizer name is required']
+  },
+  images: [{
+    url: {
+      type: String,
+      required: true
+    },
+    publicId: {
+      type: String,
+      required: true
+    }
+  }],
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  }
+}, {
+  timestamps: true
+});
+
+const BikeRide = mongoose.model('BikeRide', bikeRideSchema);
+
+// Package Schema
+const packageSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Title is required'],
+    trim: true,
+    maxlength: [200, 'Title cannot exceed 200 characters']
+  },
+  location: {
+    type: String,
+    required: [true, 'Location is required'],
+    trim: true,
+    maxlength: [100, 'Location cannot exceed 100 characters']
+  },
+  duration: {
+    type: String,
+    required: [true, 'Duration is required'],
+    trim: true
+  },
+  price: {
+    type: String,
+    required: [true, 'Price is required'],
+    trim: true
+  },
+  originalPrice: {
+    type: String,
+    trim: true
+  },
+  rating: {
+    type: Number,
+    min: [0, 'Rating cannot be negative'],
+    max: [5, 'Rating cannot exceed 5'],
+    default: 0
+  },
+  reviews: {
+    type: Number,
+    min: [0, 'Reviews cannot be negative'],
+    default: 0
+  },
+  includes: [{
+    type: String,
+    trim: true
+  }],
+  highlights: [{
+    type: String,
+    trim: true
+  }],
+  maxPeople: {
+    type: Number,
+    required: [true, 'Max people is required'],
+    min: [1, 'Must accommodate at least 1 person']
+  },
+  badge: {
+    type: String,
+    trim: true
+  },
+  discount: {
+    type: String,
+    trim: true
+  },
+  images: [{
+    url: {
+      type: String,
+      required: true
+    },
+    publicId: {
+      type: String,
+      required: true
+    }
+  }],
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  }
+}, {
+  timestamps: true
+});
+
+const Package = mongoose.model('Package', packageSchema);
+
+// Booking Schema
+const bookingSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User is required']
+  },
+  package: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Package',
+    required: [true, 'Package is required']
+  },
+  status: {
+    type: String,
+    enum: {
+      values: ['pending', 'confirmed', 'cancelled', 'completed'],
+      message: 'Status must be pending, confirmed, cancelled, or completed'
+    },
+    default: 'pending'
+  },
+  bookingDate: {
+    type: Date,
+    default: Date.now
+  },
+  travelers: {
+    type: Number,
+    required: [true, 'Number of travelers is required'],
+    min: [1, 'At least 1 traveler is required'],
+    max: [50, 'Maximum 50 travelers allowed']
+  },
+  totalPrice: {
+    type: String,
+    required: [true, 'Total price is required']
+  },
+  specialRequests: {
+    type: String,
+    maxlength: [500, 'Special requests cannot exceed 500 characters'],
+    default: ''
+  }
+}, {
+  timestamps: true
+});
+
+// Prevent duplicate bookings for same user and package
+bookingSchema.index({ user: 1, package: 1 }, { unique: true });
+
+const Booking = mongoose.model('Booking', bookingSchema);
+
+module.exports = { User, Post, Comment, Like, Follow, HiddenPlace, BikeRide, Package, Booking };

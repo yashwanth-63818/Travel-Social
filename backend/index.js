@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./db');
-const { User, Post, Comment, Like, Follow, HiddenPlace } = require('./models');
+const { User, Post, Comment, Like, Follow, HiddenPlace, BikeRide, Package, Booking } = require('./models');
 const { generateToken, authenticateToken, validateSignup, validateLogin } = require('./middleware');
 const { upload, uploadToCloudinary, deleteFromCloudinary, verifyCloudinaryConfig } = require('./cloudinary');
 
@@ -170,6 +170,36 @@ app.post('/api/auth/signup', validateSignup, async (req, res) => {
     });
   }
 });
+
+// Admin Middleware
+const requireAdmin = async (req, res, next) => {
+  try {
+    // Check if user is authenticated
+    if (!req.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Find user and check role
+    const user = await User.findById(req.userId);
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required'
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Admin middleware error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
 
 // Posts Routes
 
@@ -557,6 +587,431 @@ app.delete('/api/posts/:postId/comments/:commentId', authenticateToken, async (r
     res.status(500).json({
       success: false,
       message: 'Internal server error deleting comment'
+    });
+  }
+});
+
+// BikeRide Routes
+
+// GET /api/bike-rides - Get all bike rides
+app.get('/api/bike-rides', async (req, res) => {
+  try {
+    const bikeRides = await BikeRide.find()
+      .populate('createdBy', '_id name avatar')
+      .populate('participants', '_id name avatar')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: { bikeRides: bikeRides || [] }
+    });
+
+  } catch (error) {
+    console.error('Get bike rides error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error fetching bike rides',
+      data: { bikeRides: [] }, // Return empty array as fallback
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// POST /api/bike-rides - Create a new bike ride (Protected)
+app.post('/api/bike-rides', authenticateToken, upload.array('images', 5), async (req, res) => {
+  try {
+    const { title, location, description, date, time, distance, difficulty, maxParticipants, organizer, latitude, longitude, locationName } = req.body;
+
+    // Validate required fields
+    if (!title || !location || !description || !date || !time || !distance || !difficulty || !maxParticipants || !organizer) {
+      return res.status(400).json({
+        success: false,
+        message: 'All required fields must be provided'
+      });
+    }
+
+    // Handle image uploads
+    const imageData = [];
+    if (req.files && req.files.length > 0) {
+      console.log(`Uploading ${req.files.length} image(s) for bike ride...`);
+      
+      for (const file of req.files) {
+        try {
+          const uploadResult = await uploadToCloudinary(file.buffer, file.originalname);
+          imageData.push({
+            url: uploadResult.url,
+            publicId: uploadResult.public_id
+          });
+          console.log('✓ Bike ride image uploaded successfully:', uploadResult.url);
+        } catch (uploadError) {
+          console.error('Error uploading bike ride image to Cloudinary:', uploadError);
+        }
+      }
+    }
+
+    // Create new bike ride
+    const bikeRide = new BikeRide({
+      title,
+      location,
+      locationName,
+      latitude: latitude ? parseFloat(latitude) : undefined,
+      longitude: longitude ? parseFloat(longitude) : undefined,
+      description,
+      date: new Date(date),
+      time,
+      distance,
+      difficulty,
+      maxParticipants: parseInt(maxParticipants),
+      participants: [], // Initialize as empty array
+      organizer,
+      images: imageData,
+      createdBy: req.userId
+    });
+
+    await bikeRide.save();
+    await bikeRide.populate('createdBy', '_id name avatar');
+
+    res.status(201).json({
+      success: true,
+      message: 'Bike ride created successfully',
+      data: { bikeRide }
+    });
+
+  } catch (error) {
+    console.error('Create bike ride error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error creating bike ride',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// GET /api/bike-rides/search - Search bike rides
+app.get('/api/bike-rides/search', async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required',
+        data: { bikeRides: [] }
+      });
+    }
+
+    const searchRegex = new RegExp(query, 'i');
+    
+    const bikeRides = await BikeRide.find({
+      $or: [
+        { title: { $regex: searchRegex } },
+        { location: { $regex: searchRegex } },
+        { locationName: { $regex: searchRegex } },
+        { description: { $regex: searchRegex } }
+      ]
+    })
+      .populate('createdBy', '_id name avatar')
+      .populate('participants', '_id name avatar')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: { bikeRides: bikeRides || [] }
+    });
+
+  } catch (error) {
+    console.error('Search bike rides error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error searching bike rides',
+      data: { bikeRides: [] }, // Return empty array as fallback
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// GET /api/bike-rides/:id - Get single bike ride details
+app.get('/api/bike-rides/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const bikeRide = await BikeRide.findById(id)
+      .populate('createdBy', '_id name avatar bio')
+      .populate('participants', '_id name avatar bio')
+      .lean();
+
+    if (!bikeRide) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bike ride not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { bikeRide }
+    });
+
+  } catch (error) {
+    console.error('Get bike ride details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error fetching bike ride details',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// POST /api/bike-rides/:id/join - Join a bike ride (Protected)
+app.post('/api/bike-rides/:id/join', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const bikeRide = await BikeRide.findById(id);
+
+    if (!bikeRide) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bike ride not found'
+      });
+    }
+
+    // Check if already joined
+    if (bikeRide.participants.includes(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already joined this bike ride'
+      });
+    }
+
+    // Check if ride is at capacity
+    if (bikeRide.participants.length >= bikeRide.maxParticipants) {
+      return res.status(400).json({
+        success: false,
+        message: 'This bike ride is at maximum capacity'
+      });
+    }
+
+    // Check if ride is still upcoming
+    if (bikeRide.status !== 'upcoming') {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only join upcoming bike rides'
+      });
+    }
+
+    // Add user to participants
+    bikeRide.participants.push(userId);
+    await bikeRide.save();
+
+    // Populate and return updated ride
+    await bikeRide.populate('participants', '_id name avatar');
+    await bikeRide.populate('createdBy', '_id name avatar');
+
+    res.status(200).json({
+      success: true,
+      message: 'Successfully joined bike ride',
+      data: { bikeRide }
+    });
+
+  } catch (error) {
+    console.error('Join bike ride error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error joining bike ride',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Package Routes
+
+// GET /api/packages - Get all packages
+app.get('/api/packages', async (req, res) => {
+  try {
+    const packages = await Package.find()
+      .populate('createdBy', '_id name avatar')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: { packages }
+    });
+
+  } catch (error) {
+    console.error('Get packages error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error fetching packages',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// POST /api/packages - Create a new package (Admin Only)
+app.post('/api/packages', authenticateToken, requireAdmin, upload.array('images', 5), async (req, res) => {
+  try {
+    const { title, location, duration, price, originalPrice, rating, reviews, includes, highlights, maxPeople, badge, discount } = req.body;
+
+    // Validate required fields
+    if (!title || !location || !duration || !price || !maxPeople) {
+      return res.status(400).json({
+        success: false,
+        message: 'All required fields must be provided'
+      });
+    }
+
+    // Parse arrays from form data
+    const parsedIncludes = includes ? (typeof includes === 'string' ? JSON.parse(includes) : includes) : [];
+    const parsedHighlights = highlights ? (typeof highlights === 'string' ? JSON.parse(highlights) : highlights) : [];
+
+    // Handle image uploads
+    const imageData = [];
+    if (req.files && req.files.length > 0) {
+      console.log(`Uploading ${req.files.length} image(s) for package...`);
+      
+      for (const file of req.files) {
+        try {
+          const uploadResult = await uploadToCloudinary(file.buffer, file.originalname);
+          imageData.push({
+            url: uploadResult.url,
+            publicId: uploadResult.public_id
+          });
+          console.log('✓ Package image uploaded successfully:', uploadResult.url);
+        } catch (uploadError) {
+          console.error('Error uploading package image to Cloudinary:', uploadError);
+        }
+      }
+    }
+
+    // Create new package
+    const newPackage = new Package({
+      title,
+      location,
+      duration,
+      price,
+      originalPrice,
+      rating: parseFloat(rating) || 0,
+      reviews: parseInt(reviews) || 0,
+      includes: parsedIncludes,
+      highlights: parsedHighlights,
+      maxPeople: parseInt(maxPeople),
+      badge,
+      discount,
+      images: imageData,
+      createdBy: req.userId
+    });
+
+    await newPackage.save();
+    await newPackage.populate('createdBy', '_id name avatar');
+
+    res.status(201).json({
+      success: true,
+      message: 'Package created successfully',
+      data: { package: newPackage }
+    });
+
+  } catch (error) {
+    console.error('Create package error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error creating package',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Booking Routes
+
+// POST /api/packages/:id/book - Book a package (Protected)
+app.post('/api/packages/:id/book', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { travelers, totalPrice, specialRequests } = req.body;
+    const userId = req.userId;
+
+    // Validate required fields
+    if (!travelers || !totalPrice) {
+      return res.status(400).json({
+        success: false,
+        message: 'Number of travelers and total price are required'
+      });
+    }
+
+    // Check if package exists
+    const packageExists = await Package.findById(id);
+    if (!packageExists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Package not found'
+      });
+    }
+
+    // Check if user already has a booking for this package
+    const existingBooking = await Booking.findOne({
+      user: userId,
+      package: id
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({
+        success: false,
+        message: 'You already have a booking for this package'
+      });
+    }
+
+    // Create new booking
+    const booking = new Booking({
+      user: userId,
+      package: id,
+      travelers: parseInt(travelers),
+      totalPrice,
+      specialRequests: specialRequests || ''
+    });
+
+    await booking.save();
+    await booking.populate('package', 'title location duration price images');
+    await booking.populate('user', 'name email');
+
+    res.status(201).json({
+      success: true,
+      message: 'Package booked successfully',
+      data: { booking }
+    });
+
+  } catch (error) {
+    console.error('Book package error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error booking package',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// GET /api/bookings/my - Get user's bookings (Protected)
+app.get('/api/bookings/my', authenticateToken, async (req, res) => {
+  try {
+    const bookings = await Booking.find({ user: req.userId })
+      .populate('package', 'title location duration price images badge')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: { bookings }
+    });
+
+  } catch (error) {
+    console.error('Get user bookings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error fetching bookings',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
