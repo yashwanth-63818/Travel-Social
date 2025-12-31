@@ -72,6 +72,17 @@ const postSchema = new mongoose.Schema({
     trim: true,
     maxlength: [2000, 'Content cannot exceed 2000 characters']
   },
+  images: [{
+    url: {
+      type: String,
+      required: true
+    },
+    publicId: {
+      type: String,
+      required: true
+    }
+  }],
+  // Keep legacy fields for backward compatibility
   mediaUrl: {
     type: String,
     trim: true

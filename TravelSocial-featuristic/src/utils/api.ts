@@ -97,15 +97,68 @@ export const postsAPI = {
   // Create new post
   createPost: async (postData: {
     content: string;
-    mediaUrl?: string;
-    mediaType?: 'image' | 'video';
+    images?: File[];
     location?: string;
     locationData?: { name: string; lat: number; lon: number };
   }) => {
-    return apiRequest('/posts', {
-      method: 'POST',
-      body: JSON.stringify(postData)
-    });
+    const token = getAuthToken();
+    
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+
+    // Create FormData for multipart/form-data
+    const formData = new FormData();
+    formData.append('content', postData.content);
+    
+    if (postData.location) {
+      formData.append('location', postData.location);
+    }
+    
+    if (postData.locationData) {
+      formData.append('locationData', JSON.stringify(postData.locationData));
+    }
+    
+    // Add image files
+    if (postData.images && postData.images.length > 0) {
+      postData.images.forEach((file) => {
+        formData.append('images', file);
+      });
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/posts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // Don't set Content-Type header - let browser set it with boundary for FormData
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // If JSON parsing fails, use the HTTP status message
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      // Handle network errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Unable to connect to server. Please check if the backend is running on http://localhost:5000');
+      }
+      
+      throw error;
+    }
   },
 
   // Like/Unlike post
@@ -125,6 +178,28 @@ export const postsAPI = {
     return apiRequest(`/posts/${postId}/comments`, {
       method: 'POST',
       body: JSON.stringify({ text })
+    });
+  },
+
+  // Edit post caption
+  editPost: async (postId: string, content: string) => {
+    return apiRequest(`/posts/${postId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content })
+    });
+  },
+
+  // Delete post
+  deletePost: async (postId: string) => {
+    return apiRequest(`/posts/${postId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Delete comment
+  deleteComment: async (postId: string, commentId: string) => {
+    return apiRequest(`/posts/${postId}/comments/${commentId}`, {
+      method: 'DELETE'
     });
   }
 };

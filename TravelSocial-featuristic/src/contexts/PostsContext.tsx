@@ -33,6 +33,11 @@ export interface Post {
     avatar: string;
   };
   content: string;
+  images?: Array<{
+    url: string;
+    publicId: string;
+  }>;
+  // Legacy fields for backward compatibility
   mediaUrl?: string;
   mediaType?: 'image' | 'video';
   location?: string;
@@ -52,14 +57,16 @@ interface PostsContextType {
   fetchPosts: () => Promise<void>;
   createPost: (postData: {
     content: string;
-    mediaUrl?: string;
-    mediaType?: 'image' | 'video';
+    images?: File[];
     location?: string;
     locationData?: LocationData;
   }) => Promise<void>;
   toggleLike: (postId: string) => Promise<void>;
   addComment: (postId: string, text: string) => Promise<void>;
   getComments: (postId: string) => Promise<Comment[]>;
+  editPost: (postId: string, content: string) => Promise<void>;
+  deletePost: (postId: string) => Promise<void>;
+  deleteComment: (postId: string, commentId: string) => Promise<void>;
 }
 
 // Create default context value
@@ -71,7 +78,10 @@ const defaultContextValue: PostsContextType = {
   createPost: async () => {},
   toggleLike: async () => {},
   addComment: async () => {},
-  getComments: async () => []
+  getComments: async () => [],
+  editPost: async () => {},
+  deletePost: async () => {},
+  deleteComment: async () => {}
 };
 
 const PostsContext = createContext<PostsContextType>(defaultContextValue);
@@ -114,8 +124,7 @@ export const PostsProvider: React.FC<PostsProviderProps> = ({ children }) => {
   // Create new post
   const createPost = async (postData: {
     content: string;
-    mediaUrl?: string;
-    mediaType?: 'image' | 'video';
+    images?: File[];
     location?: string;
     locationData?: LocationData;
   }) => {
@@ -197,6 +206,62 @@ export const PostsProvider: React.FC<PostsProviderProps> = ({ children }) => {
     }
   };
 
+  // Edit post caption
+  const editPost = async (postId: string, content: string) => {
+    try {
+      const response = await postsAPI.editPost(postId, content);
+      if (response.success) {
+        // Update the post in local state
+        setPosts(prevPosts =>
+          prevPosts.map(post =>
+            post._id === postId
+              ? { ...post, content }
+              : post
+          )
+        );
+      }
+    } catch (err: any) {
+      console.error('Error editing post:', err);
+      throw err;
+    }
+  };
+
+  // Delete post
+  const deletePost = async (postId: string) => {
+    try {
+      const response = await postsAPI.deletePost(postId);
+      if (response.success) {
+        // Remove the post from local state
+        setPosts(prevPosts =>
+          prevPosts.filter(post => post._id !== postId)
+        );
+      }
+    } catch (err: any) {
+      console.error('Error deleting post:', err);
+      throw err;
+    }
+  };
+
+  // Delete comment
+  const deleteComment = async (postId: string, commentId: string) => {
+    try {
+      const response = await postsAPI.deleteComment(postId, commentId);
+      if (response.success) {
+        // Update comments count optimistically
+        setPosts(prevPosts =>
+          prevPosts.map(post =>
+            post._id === postId
+              ? { ...post, commentsCount: Math.max(0, post.commentsCount - 1) }
+              : post
+          )
+        );
+      }
+    } catch (err: any) {
+      console.error('Error deleting comment:', err);
+      throw err;
+    }
+  };
+
   // Fetch posts on mount
   useEffect(() => {
     fetchPosts();
@@ -212,7 +277,10 @@ export const PostsProvider: React.FC<PostsProviderProps> = ({ children }) => {
         createPost,
         toggleLike,
         addComment,
-        getComments
+        getComments,
+        editPost,
+        deletePost,
+        deleteComment
       }}
     >
       {children}

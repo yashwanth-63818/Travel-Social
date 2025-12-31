@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { useState, useRef, useEffect } from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, Send, Image as ImageIcon, MapPin, Loader2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Send, Image as ImageIcon, MapPin, Loader2, MoreHorizontal, Edit3, Trash2, X, Check } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { usePostsContext, Post } from '../contexts/PostsContext';
 import { getCurrentUser, getCurrentUserId } from '../utils/api';
@@ -39,7 +39,7 @@ export default function SocialFeed({
   currentUser, 
   onLocationSelect
 }: SocialFeedProps) {
-  const { posts, loading, error, createPost, toggleLike, addComment: addCommentAPI, getComments } = usePostsContext();
+  const { posts, loading, error, createPost, toggleLike, addComment: addCommentAPI, getComments, editPost, deletePost, deleteComment } = usePostsContext();
   const [newPost, setNewPost] = useState('');
   const [isPosting, setIsPosting] = useState(false);
 
@@ -48,6 +48,12 @@ export default function SocialFeed({
   const [loadedComments, setLoadedComments] = useState<{[key: string]: any[]}>({});
   const [selectedMedia, setSelectedMedia] = useState<MediaFile[]>([]);
   const [newLocation, setNewLocation] = useState('');
+  
+  // Post management states
+  const [showPostMenu, setShowPostMenu] = useState<{[key: string]: boolean}>({});
+  const [editingPost, setEditingPost] = useState<{[key: string]: boolean}>({});
+  const [editContent, setEditContent] = useState<{[key: string]: string}>({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{[key: string]: boolean}>({});
   const [selectedLocationData, setSelectedLocationData] = useState<LocationData | null>(null);
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
@@ -70,6 +76,23 @@ export default function SocialFeed({
       });
     };
   }, [selectedMedia]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      
+      // Check if the click is outside any post menu or its trigger button
+      if (!target.closest('.post-menu-container')) {
+        setShowPostMenu({});
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleLike = async (postId: string) => {
     if (!currentUserId) {
@@ -313,20 +336,25 @@ export default function SocialFeed({
     try {
       setIsPosting(true);
       
-      // For now, we'll use the first media URL if available
-      // In a production app, you'd upload the file and get a URL
-      const mediaUrl = selectedMedia[0]?.url;
-      const mediaType = selectedMedia[0]?.type;
+      // Extract File objects from selectedMedia
+      const imageFiles = selectedMedia
+        .filter(media => media.type === 'image')
+        .map(media => media.file);
 
       await createPost({
         content: newPost,
-        mediaUrl,
-        mediaType,
+        images: imageFiles.length > 0 ? imageFiles : undefined,
         location: newLocation.trim() || undefined,
         locationData: selectedLocationData || undefined
       });
 
-      // Clear form
+      // Clear form and revoke object URLs
+      selectedMedia.forEach(media => {
+        if (media.url.startsWith('blob:')) {
+          URL.revokeObjectURL(media.url);
+        }
+      });
+      
       setNewPost('');
       setSelectedMedia([]);
       setNewLocation('');
@@ -339,6 +367,72 @@ export default function SocialFeed({
       alert('Failed to create post. Please try again.');
     } finally {
       setIsPosting(false);
+    }
+  };
+
+  // Post management handlers
+  const togglePostMenu = (postId: string) => {
+    setShowPostMenu(prev => ({
+      ...prev,
+      [postId]: !prev[postId]
+    }));
+  };
+
+  const startEditPost = (postId: string, currentContent: string) => {
+    setEditingPost(prev => ({ ...prev, [postId]: true }));
+    setEditContent(prev => ({ ...prev, [postId]: currentContent }));
+    setShowPostMenu(prev => ({ ...prev, [postId]: false }));
+  };
+
+  const cancelEditPost = (postId: string, originalContent: string) => {
+    setEditingPost(prev => ({ ...prev, [postId]: false }));
+    setEditContent(prev => ({ ...prev, [postId]: originalContent }));
+  };
+
+  const saveEditPost = async (postId: string) => {
+    const newContent = editContent[postId]?.trim();
+    if (!newContent) {
+      alert('Post content cannot be empty');
+      return;
+    }
+
+    try {
+      await editPost(postId, newContent);
+      setEditingPost(prev => ({ ...prev, [postId]: false }));
+    } catch (error) {
+      console.error('Error editing post:', error);
+      alert('Failed to edit post. Please try again.');
+    }
+  };
+
+  const confirmDeletePost = (postId: string) => {
+    setShowDeleteConfirm(prev => ({ ...prev, [postId]: true }));
+    setShowPostMenu(prev => ({ ...prev, [postId]: false }));
+  };
+
+  const cancelDeletePost = (postId: string) => {
+    setShowDeleteConfirm(prev => ({ ...prev, [postId]: false }));
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await deletePost(postId);
+      setShowDeleteConfirm(prev => ({ ...prev, [postId]: false }));
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post. Please try again.');
+    }
+  };
+
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    try {
+      await deleteComment(postId, commentId);
+      // Reload comments for this post
+      const updatedComments = await getComments(postId);
+      setLoadedComments(prev => ({ ...prev, [postId]: updatedComments }));
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment. Please try again.');
     }
   };
 
@@ -581,28 +675,165 @@ export default function SocialFeed({
                     </div>
                   </div>
                 </div>
+                
+                {/* Three-dot menu for post owner only */}
+                {(() => {
+                  const isOwner = currentUserId && (
+                    post.author._id === currentUserId || 
+                    post.author.id === currentUserId ||
+                    post.author._id?.toString() === currentUserId?.toString()
+                  );
+                  
+                  return isOwner;
+                })() && (
+                  <div className="relative post-menu-container">
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => togglePostMenu(post._id)}
+                      className="p-2 text-gray-400 hover:text-yellow-400 transition-colors"
+                    >
+                      <MoreHorizontal className="w-5 h-5" />
+                    </motion.button>
+                    
+                    {/* Dropdown menu */}
+                    {showPostMenu[post._id] && (
+                      <div className="absolute right-0 top-full mt-2 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg z-20 min-w-[150px]">
+                        <button
+                          onClick={() => startEditPost(post._id, post.content)}
+                          className="flex items-center gap-2 w-full px-4 py-2 text-left text-white hover:bg-zinc-700 transition-colors"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                          Edit Caption
+                        </button>
+                        <button
+                          onClick={() => confirmDeletePost(post._id)}
+                          className="flex items-center gap-2 w-full px-4 py-2 text-left text-red-400 hover:bg-zinc-700 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete Post
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Post Content */}
               <div className="px-4 pb-4">
-                <p className="text-white mb-4">{post.content}</p>
+                {editingPost[post._id] ? (
+                  <div className="space-y-3">
+                    <textarea
+                      value={editContent[post._id] || ''}
+                      onChange={(e) => setEditContent(prev => ({ ...prev, [post._id]: e.target.value }))}
+                      className="w-full bg-zinc-800 text-white rounded-lg p-3 resize-none border-2 border-transparent focus:border-yellow-400 outline-none"
+                      rows={3}
+                      placeholder="What's on your mind?"
+                    />
+                    <div className="flex items-center gap-2">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => saveEditPost(post._id)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-yellow-400 text-black rounded-lg hover:bg-yellow-500 transition-colors text-sm"
+                      >
+                        <Check className="w-4 h-4" />
+                        Save
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => cancelEditPost(post._id, post.content)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600 transition-colors text-sm"
+                      >
+                        <X className="w-4 h-4" />
+                        Cancel
+                      </motion.button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-white mb-4">{post.content}</p>
+                )}
               </div>
+              
+              {/* Delete Confirmation Modal */}
+              {showDeleteConfirm[post._id] && (
+                <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-30 rounded-xl">
+                  <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 max-w-sm mx-4">
+                    <h3 className="text-white font-semibold mb-2">Delete Post?</h3>
+                    <p className="text-gray-400 mb-4 text-sm">This action cannot be undone. Your post and all its comments will be permanently deleted.</p>
+                    <div className="flex items-center gap-3">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleDeletePost(post._id)}
+                        className="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition-colors text-sm"
+                      >
+                        Delete
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => cancelDeletePost(post._id)}
+                        className="flex-1 bg-zinc-700 text-white py-2 px-4 rounded-lg hover:bg-zinc-600 transition-colors text-sm"
+                      >
+                        Cancel
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Post Media */}
-              {post.mediaUrl && (
+              {/* Show images from new images array or fallback to legacy mediaUrl */}
+              {((post.images && post.images.length > 0) || post.mediaUrl) && (
                 <div className="relative">
-                  {post.mediaType === 'video' ? (
-                    <video
-                      src={post.mediaUrl}
-                      controls
-                      className="w-full h-96 object-cover"
-                    />
+                  {/* New images array format */}
+                  {post.images && post.images.length > 0 ? (
+                    post.images.length === 1 ? (
+                      // Single image
+                      <ImageWithFallback
+                        src={post.images[0].url}
+                        alt="Post"
+                        className="w-full h-96 object-cover"
+                      />
+                    ) : (
+                      // Multiple images grid
+                      <div className={`grid gap-1 ${post.images.length === 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
+                        {post.images.slice(0, 4).map((image, index) => (
+                          <div key={index} className="relative">
+                            <ImageWithFallback
+                              src={image.url}
+                              alt={`Post image ${index + 1}`}
+                              className={`w-full object-cover ${
+                                post.images.length <= 2 ? 'h-64' : 'h-48'
+                              }`}
+                            />
+                            {/* Show +X more overlay for 4th image if there are more than 4 images */}
+                            {index === 3 && post.images.length > 4 && (
+                              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                                <span className="text-white text-xl font-bold">+{post.images.length - 4}</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
                   ) : (
-                    <ImageWithFallback
-                      src={post.mediaUrl}
-                      alt="Post"
-                      className="w-full h-96 object-cover"
-                    />
+                    // Legacy mediaUrl format (backward compatibility)
+                    post.mediaType === 'video' ? (
+                      <video
+                        src={post.mediaUrl}
+                        controls
+                        className="w-full h-96 object-cover"
+                      />
+                    ) : (
+                      <ImageWithFallback
+                        src={post.mediaUrl}
+                        alt="Post"
+                        className="w-full h-96 object-cover"
+                      />
+                    )
                   )}
                 </div>
               )}
@@ -668,24 +899,55 @@ export default function SocialFeed({
                       </motion.button>
                     </div>
                     <div className="space-y-3">
-                      {postComments.map((comment: any) => (
-                        <div key={comment._id} className="flex gap-3">
-                          <ImageWithFallback
-                            src={comment.author.avatar}
-                            alt={comment.author.name}
-                            className="w-8 h-8 rounded-full border border-yellow-400"
-                          />
-                          <div className="flex-1 bg-zinc-800 rounded-lg p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-sm font-medium">{comment.author.name}</p>
-                              <span className="text-xs text-gray-500">
-                                {new Date(comment.createdAt).toLocaleDateString()}
-                              </span>
+                      {postComments.map((comment: any) => {
+                        const isCommentAuthor = currentUserId && (
+                          comment.author._id === currentUserId || 
+                          comment.author.id === currentUserId ||
+                          comment.author._id?.toString() === currentUserId?.toString()
+                        );
+                        
+                        const isPostOwner = currentUserId && (
+                          post.author._id === currentUserId || 
+                          post.author.id === currentUserId ||
+                          post.author._id?.toString() === currentUserId?.toString()
+                        );
+                        
+                        const canDeleteComment = isCommentAuthor || isPostOwner;
+                        
+                        return (
+                          <div key={comment._id} className="flex gap-3">
+                            <ImageWithFallback
+                              src={comment.author.avatar}
+                              alt={comment.author.name}
+                              className="w-8 h-8 rounded-full border border-yellow-400"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 bg-zinc-800 rounded-lg p-3">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-sm font-medium">{comment.author.name}</p>
+                                    <span className="text-xs text-gray-500">
+                                      {new Date(comment.createdAt).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-300">{comment.text}</p>
+                                </div>
+                                
+                                {canDeleteComment && (
+                                  <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => handleDeleteComment(post._id, comment._id)}
+                                    className="ml-2 p-1.5 text-gray-400 hover:text-red-400 transition-colors"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </motion.button>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-sm text-gray-300">{comment.text}</p>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </motion.div>
                 )}
